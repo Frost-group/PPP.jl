@@ -14,10 +14,10 @@ All energies are in eV, distances in Angstroms.
 """
 module Constants
     # Fundamental physical constants
-    const e = 1.602176634e-19    # Elementary charge (C)
+    const q = 1.602176634e-19    # Elementary charge (C)
     const ε₀ = 8.8541878128e-12  # Vacuum permittivity (F/m)
     # Derived constant for PPP model (e²/4πε₀ in eV⋅Å)
-    const ohnoconstant = e²_to_ev = e / (4π * ε₀ * 1e-10)  # 1 Å = 1e-10 m
+    const ohnoconstant = q²_to_ev = q / (4π * ε₀ * 1e-10)  # 1 Å = 1e-10 m
     #  i.e. classical interaction energy of two point charges at 1 Å, in eV
   #  @assert e²_to_ev ≈ 14.397 "Calculated e²/Å differs from expected value"
 
@@ -110,7 +110,7 @@ end
 function create_atom(symbol::Symbol, x::Float64, y::Float64)
     position = SVector{2,Float64}(x, y)
    # treatment of nz factor is an absolute mess, because I didn't understand what it was as I was coding along
-   #  The horror that remains works, but only for C and N, and only in the one specific geometry tested 
+   # FIXME: The horror that remains works, but only for C and N, and only in the one specific geometry tested 
     if symbol == :C
         return Atom(symbol, position, 2, 1, Constants.ES_C, Constants.UC)
     elseif symbol == :N
@@ -171,6 +171,8 @@ end
 Calculate the total number of π electrons in the system.
 """
 function calculate_n_electrons(atoms::Vector{Atom})::Int
+    # Absolute terrible hack; only works for C and N
+    # FIXME: Some kind of periodic lookup table, with valency calculation c.f. group ?
     sum(atom.symbol == :C ? 1 : (atom.n_bonds == 3 ? 2 : 1) for atom in atoms)
 end
 
@@ -418,8 +420,8 @@ function read_geometry(filename::String)::MolecularSystem
     
     for i in 2:(n_atoms_total+1)
         symbol, x, y = parse_xyz_line(lines[i])
-        symbol == :H && continue
-        push!(temp_atoms, create_atom(symbol, x, y))
+        symbol == :H && continue  # skip hydrogen
+        push!(temp_atoms, create_atom(symbol, x, y)) # Nb: only works for C and N!
     end
     
     positions = [atom.position for atom in temp_atoms]
