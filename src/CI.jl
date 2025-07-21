@@ -5,6 +5,7 @@ abstract type ExcitationType end
 struct SingleExcitation <: ExcitationType end
 struct DoubleExcitation <: ExcitationType end
 
+
 # Configuration represents |Φᵢ⟩ in CI expansion
 struct Configuration
     type::ExcitationType
@@ -88,12 +89,32 @@ function calculate_ci_matrix_element(config1::Configuration, config2::Configurat
 end
 
 # Transform PPP two-electron integrals from AO to MO basis
-function transform_two_electron_integral(i::Int, j::Int, k::Int, l::Int, scf_result::SCFResult)
+function transform_two_electron_integral(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     C = scf_result.eigenvectors
-    K = scf_result.K
-    return sum(C[μ,i] * C[ν,j] * K[μ,ν] * C[λ,k] * C[σ,l]
-              for μ in axes(C,1), ν in axes(C,1), 
-                  λ in axes(C,1), σ in axes(C,1))
+    V = scf_result.V_raw
+    return sum(C[μ,i] * C[μ,a] * V[μ,ν] * C[ν,j] * C[ν,b]
+              for μ in axes(C,1), ν in axes(C,1))
+end
+
+function calculate_two_electron_term(i::Int, a::Int, scf_result::SCFResult)
+    C = scf_result.eigenvectors
+    V = scf_result.V_raw
+
+    n_sites = size(V, 1)
+    term = 0.0
+    
+    # Calculate ⟨ia|ia⟩ - ⟨ii|aa⟩
+    for μ in 1:n_sites, ν in 1:n_sites
+        for λ in 1:n_sites, σ in 1:n_sites
+            # Direct term ⟨ia|ia⟩
+            term += C[μ,i] * C[ν,a] * V[μ,ν] * C[λ,i] * C[σ,a]
+            
+            # Exchange term -⟨ii|aa⟩
+            term -= C[μ,i] * C[ν,i] * V[μ,ν] * C[λ,a] * C[σ,a]
+        end
+    end
+    
+    return term
 end
 
 # Calculate oscillator strengths using transition dipoles
@@ -110,49 +131,29 @@ function calculate_oscillator_strength(config::Configuration, scf_result::SCFRes
     return (2/3) * ΔE * sum(abs2, μ)
 end
 
-function calculate_two_electron_term(i::Int, a::Int, C::Matrix{Float64}, K::Matrix{Float64})
-    n_sites = size(K, 1)
-    term = 0.0
-    
-    # Calculate ⟨ia|ia⟩ - ⟨ii|aa⟩
-    for μ in 1:n_sites, ν in 1:n_sites
-        for λ in 1:n_sites, σ in 1:n_sites
-            # Direct term ⟨ia|ia⟩
-            term += C[μ,i] * C[ν,a] * K[μ,ν] * C[λ,i] * C[σ,a]
-            
-            # Exchange term -⟨ii|aa⟩
-            term -= C[μ,i] * C[ν,i] * K[μ,ν] * C[λ,a] * C[σ,a]
-        end
-    end
-    
-    return term
-end
-
 """
 Calculate CIS matrix element ⟨Φᵢᵃ|H|Φⱼᵇ⟩ using PPP Hamiltonian
 """
-function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
-    if i == j && a == b
-        # Diagonal element
-        orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
-        two_electron = calculate_two_electron_term(i, a, scf_result.eigenvectors, scf_result.K)
-        return orbital_energy_diff + two_electron
-    else
-        # Off-diagonal element
-        n_sites = size(scf_result.K, 1)
-        C = scf_result.eigenvectors
-        K = scf_result.K
-        
-        coupling = 0.0
-        for μ in 1:n_sites, ν in 1:n_sites
-            for λ in 1:n_sites, σ in 1:n_sites
-                coupling += C[μ,i] * C[ν,a] * K[μ,ν] * C[λ,j] * C[σ,b]
-            end
+function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
+    if singlet==true 
+        if i == j && a == b
+            # Diagonal element
+            orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
+            return orbital_energy_diff + 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
+        else
+            return 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         end
-        
-        return coupling
+    else
+        if i == j && a == b
+            # Diagonal element
+            orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
+            return orbital_energy_diff - transform_two_electron_integral(i,j,a,b, scf_result)
+        else
+            return - transform_two_electron_integral(i,j,a,b, scf_result)
+        end
     end
 end
+
 
 """
 Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
@@ -188,25 +189,39 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     println("\nNumber of configurations: $n_configs")
     
     # Build CIS matrix
-    H = zeros(n_configs, n_configs)
+    H_S = zeros(n_configs, n_configs)
+    H_T = zeros(n_configs, n_configs)
+
     for p in 1:n_configs, q in 1:p
         i, a = configs[p].from_orbitals[1], configs[p].to_orbitals[1]
         j, b = configs[q].from_orbitals[1], configs[q].to_orbitals[1]
-        H[p,q] = calculate_cis_matrix_element(i, a, j, b, scf_result)
-        H[q,p] = H[p,q]
+        H_S[p,q] = calculate_cis_matrix_element(i,a,j,b,scf_result; singlet=true)
+        H_S[q,p] = H_S[p,q]
+        H_T[p,q] = calculate_cis_matrix_element(i,a,j,b,scf_result; singlet=false)
+        H_T[q,p] = H_T[p,q]
     end
     
     # Print CIS matrix
     println("\nCIS matrix:")
     for i in 1:min(5, n_configs)
         for j in 1:min(5, n_configs)
-            @printf(" %8.3f", H[i,j])
+            @printf(" %8.3f", H_S[i,j])
+        end
+        println()
+    end
+
+    println("\nCIS matrix:")
+    for i in 1:min(5, n_configs)
+        for j in 1:min(5, n_configs)
+            @printf(" %8.3f", H_T[i,j])
         end
         println()
     end
     
     # Solve eigenvalue problem
-    E, C = eigen(Symmetric(H))
+    E_S, C_S = eigen(Symmetric(H_S))
+    E_T, C_T = eigen(Symmetric(H_T))
+    
     
     # Calculate oscillator strengths
     f = zeros(n_configs)
@@ -217,26 +232,34 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
             for μ_idx in 1:length(system.atoms)
                 pos = system.atoms[μ_idx].position
                 i, a = config.from_orbitals[1], config.to_orbitals[1]
-                μ .+= C[idx,state] * pos .* (scf_result.eigenvectors[μ_idx,a] * 
+                μ .+= C_S[idx,state] * pos .* (scf_result.eigenvectors[μ_idx,a] * 
                                            scf_result.eigenvectors[μ_idx,i])
             end
         end
-        ΔE = E[state] * 0.0367493  # eV to a.u.
+        ΔE = E_S[state] * 0.0367493  # eV to a.u.
         f[state] = (2/3) * ΔE * sum(abs2, μ)
     end
     
-    return CIResult(
+    return (CIResult(
         "CIS",
-        E,
-        C,
+        E_S,
+        C_S,
         configs,
-        [argmax(abs.(C[:,i])) for i in 1:n_configs],
+        [argmax(abs.(C_S[:,i])) for i in 1:n_configs],
         f,
         ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
-    )
+        ),
+        CIResult(
+            "CIS",
+            E_T,
+            C_T,
+            configs,
+            [argmax(abs.(C_T[:,i])) for i in 1:n_configs],
+            f,
+            ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
+        ))
 end
+
 
 export run_cis_calculation
 export SingleExcitation, DoubleExcitation, Configuration, CIResult
-
-

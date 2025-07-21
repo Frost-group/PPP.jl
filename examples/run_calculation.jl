@@ -5,23 +5,41 @@ using Printf
 println("\n" * "="^50)
 println("Running PPP SCF Calculation")
 println("="^50)
-system, huckel_result, scf_result = PPP.run_ppp_calculation("molecule.xyz")
+system, huckel_result, scf_result = PPP.run_ppp_calculation("ethene_geo.xyz")
 
-# Run CIS calculation
+# Run CIS calculation for singlet
 println("\n" * "="^50)
-println("Running CIS Calculation")
+println("Running CIS Calculation (singlet)")
 println("="^50)
-cis_result = PPP.run_cis_calculation(system, scf_result)
+singlet, triplet = PPP.run_cis_calculation(system, scf_result)
+
 
 # Print CIS analysis
-println("\nCIS Analysis:")
+println("\nCIS Singlet Analysis:")
 println("----")
 for i in 1:5  # Show first 5 states
-    config = cis_result.configurations[cis_result.dominant_configurations[i]]
+    config = singlet.configurations[singlet.dominant_configurations[i]]
     @printf("State %d: ΔE = %.3f eV, f = %.4f, %d→%d excitation\n",
-            i, cis_result.energies[i], cis_result.oscillator_strengths[i],
+            i, singlet.energies[i], singlet.oscillator_strengths[i],
             config.from_orbitals[1], config.to_orbitals[1])
 end
+
+println("\nCIS Triplet Analysis:")
+println("----")
+for i in 1:5 # Show first 5 states
+    config = triplet.configurations[triplet.dominant_configurations[i]]
+    @printf("State %d: ΔE = %.3f eV, f = %.4f, %d→%d excitation\n",
+            i, triplet.energies[i], triplet.oscillator_strengths[i],
+            config.from_orbitals[1], config.to_orbitals[1])
+end
+
+println("\nCIS Gap Analysis:")
+println("----")
+for i in 1:5  # Show first 5 states
+    @printf("ΔE = %.3f eV\n",
+            singlet.energies[i]-triplet.energies[i])
+end
+
 
 # Run CISD calculation
 println("\n" * "="^50)

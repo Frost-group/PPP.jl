@@ -94,6 +94,7 @@ struct SCFResult
     F::Matrix{Float64}
     K::Matrix{Float64}
     J::Matrix{Float64}
+    V_raw::Matrix{Float64}
     energies::Vector{Float64}
     eigenvectors::Matrix{Float64}
     n_occupied::Int
@@ -260,10 +261,9 @@ function calculate_Ohno_parameters(system::MolecularSystem)::Matrix{Float64}
             r_ij = norm(system.atoms[i].position - system.atoms[j].position)
             U_i = system.atoms[i].Hubbard_U
             U_j = system.atoms[j].Hubbard_U
-            V[i,j] = V[j,i] = Constants.ohnoconstant / sqrt(r_ij^2 + (2Constants.ohnoconstant/(U_i + U_j))^2)
+            V[i,j] = V[j,i] = Constants.ohnoconstant / sqrt(r_ij^2 + (2*Constants.ohnoconstant/(U_i + U_j))^2)
         end
     end
-    
     return V
 end
 
@@ -279,12 +279,13 @@ function calculate_coulomb_matrix(P::Matrix{Float64}, V::Matrix{Float64},
     J = zeros(Float64, n_sites, n_sites)
     
     for i in 1:n_sites
-        J[i,i] = sum((P[j,j] - Float64(system.atoms[j].nz)) * V[i,j] 
+        J[i,i] = sum((P[j,j] - Float64(system.atoms[j].nz)) * V[j,i] 
                      for j in 1:n_sites)
     end
-    
+
     return J
 end
+
 
 """
     calculate_exchange_matrix(P::Matrix{Float64}, V::Matrix{Float64})::Matrix{Float64}
@@ -320,6 +321,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult;
     P_old = copy(huckel_result.density_matrix)
     H_core = copy(huckel_result.hamiltonian)
     V = calculate_Ohno_parameters(system)
+    V_raw = V
     
     for iter in 1:max_iterations
         J = calculate_coulomb_matrix(P_old, V, system)
@@ -348,7 +350,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult;
 
         if maximum(abs.(P_new - P_old)) < threshold
             return SCFResult(
-                F, K, J, F_eig.values, F_eig.vectors, n_occupied, P_new,
+                F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_new,
                 calculate_total_energy(F_eig.values, n_occupied),
                 iter, true
             )
@@ -359,7 +361,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult;
     
     @warn "SCF failed to converge after $max_iterations iterations"
     return SCFResult(
-        F, K, J, F_eig.values, F_eig.vectors, n_occupied, P_old,
+        F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_old,
         calculate_total_energy(F_eig.values, n_occupied),
         max_iterations, false
     )
