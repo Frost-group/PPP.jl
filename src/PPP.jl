@@ -348,7 +348,8 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult;
         E_hf = calculate_total_energy(F_eig.values, n_occupied)
         println("HF ground state energy: $E_hf eV")
 
-
+# Check for convergence
+# FIXME: Make a bit more general?
         if maximum(abs.(P_new - P_old)) < threshold
             return SCFResult(
                 F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_new,
@@ -357,10 +358,11 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult;
             )
         end
         
-        P_old = copy(P_new)
+        P_old = copy(P_new) 
+# FIXME: I was surprised this worked at all: Hartree-Fock requires a mixing parameter. Perhaps convergence would be faster with PPP
     end
     
-    @warn "SCF failed to converge after $max_iterations iterations"
+    @warn "SCF failed to converge after $max_iterations iterations. Returning the last iteration. BEWARE! DRAGONS!"
     return SCFResult(
         F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_old,
         calculate_total_energy(F_eig.values, n_occupied),

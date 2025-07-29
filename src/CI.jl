@@ -171,14 +171,15 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     
 
 
-    return (CIResult(
-        "Sinlget CIS",
-        E_S,
-        C_S,
-        configs,
-        [argmax(abs.(C_S[:,i])) for i in 1:n_configs],
-        f,
-        ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
+    return (
+        CIResult(
+            "Singlet CIS",
+            E_S,
+            C_S,
+            configs,
+            [argmax(abs.(C_S[:,i])) for i in 1:n_configs],
+            f,
+            ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
         ),
         CIResult(
             "Triplet CIS",
@@ -219,3 +220,4 @@ end
 
 export run_cis_calculation
 export SingleExcitation, DoubleExcitation, Configuration, CIResult
+
