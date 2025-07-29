@@ -65,57 +65,12 @@ function generate_excitations(n_orbs::Int, n_occ::Int)
     configs = vcat(singles,doubles)
 end
 
-# NOT IN USE: Matrix elements using PPP Hamiltonian
-function calculate_ci_matrix_element(config1::Configuration, config2::Configuration, 
-                                   scf_result::SCFResult, system::MolecularSystem)
-    if config1.type == SingleExcitation && config2.type == SingleExcitation
-        i, a = config1.from_orbitals[1], config1.to_orbitals[1]
-        j, b = config2.from_orbitals[1], config2.to_orbitals[1]
-        
-        if i == j && a == b
-            # Diagonal element: εₐ - εᵢ + ⟨ia||ia⟩
-            return (scf_result.energies[a] - scf_result.energies[i]) + 
-                   (2 * scf_result.K[a,i] - scf_result.K[a,a] - scf_result.K[i,i])
-        elseif i == j || a == b
-            # Off-diagonal element: ⟨ia||jb⟩
-            return scf_result.K[max(a,b), min(i,j)]
-        end
-    elseif config1.type == DoubleExcitation && config2.type == DoubleExcitation
-        i, j = config1.from_orbitals
-        a, b = config1.to_orbitals
-        k, l = config2.from_orbitals
-        c, d = config2.to_orbitals
-        
-        if i == k && j == l && a == c && b == d
-            # Diagonal element
-            return (scf_result.energies[a] + scf_result.energies[b] - 
-                   scf_result.energies[i] - scf_result.energies[j]) +
-                   scf_result.K[a,b] - scf_result.K[i,j]
-        end
-    end
-    return 0.0
-end
-
 # Transform PPP two-electron integrals from AO to MO basis
 function transform_two_electron_integral(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     C = scf_result.eigenvectors
     V = scf_result.V_raw
     return sum(C[μ,i] * C[μ,a] * V[μ,ν] * C[ν,j] * C[ν,b]
               for μ in axes(C,1), ν in axes(C,1))
-end
-
-# NOT IN USE: Calculate oscillator strengths using transition dipoles
-function calculate_oscillator_strength(config::Configuration, scf_result::SCFResult, 
-                                     system::MolecularSystem)
-    config.type != SingleExcitation && return 0.0
-    
-    i, a = config.from_orbitals[1], config.to_orbitals[1]
-    C = scf_result.eigenvectors
-    
-    μ = sum(system.atoms[μ].position .* C[μ,a] * C[μ,i] for μ in eachindex(system.atoms))
-    ΔE = (scf_result.energies[a] - scf_result.energies[i]) * 0.0367493  # eV to a.u.
-    
-    return (2/3) * ΔE * sum(abs2, μ)
 end
 
 """
