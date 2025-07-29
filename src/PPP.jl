@@ -44,7 +44,7 @@ Represents an atom in the π-conjugated system.
 
 Fields:
 - `symbol::Symbol`: Atomic symbol (e.g., :C, :N)
-- `position::SVector{2,Float64}`: 2D coordinates (x,y) in Angstroms
+- `position::SVector{3,Float64}`: 3D coordinates (x,y,z) in Angstroms
 - `n_bonds::Int`: Number of bonds in π structure
 - `nz::Int`: Number of valence electrons; terrible hack for Nitrogen
 - `site_energy::Float64`: Site energy in eV
@@ -52,7 +52,7 @@ Fields:
 """
 struct Atom
     symbol::Symbol
-    position::SVector{2,Float64}
+    position::SVector{3,Float64}
     n_bonds::Int
     nz::Int
     site_energy::Float64
@@ -108,8 +108,8 @@ end
 # Geometry and System Setup
 # ============================================================================ #
 
-function create_atom(symbol::Symbol, x::Float64, y::Float64)
-    position = SVector{2,Float64}(x, y)
+function create_atom(symbol::Symbol, x::Float64, y::Float64, z::Float64)
+    position = SVector{3,Float64}(x, y, z)
    # treatment of nz factor is an absolute mess, because I didn't understand what it was as I was coding along
    # FIXME: The horror that remains works, but only for C and N, and only in the one specific geometry tested 
     if symbol == :C
@@ -129,19 +129,20 @@ Parse a line from XYZ file format, returning atomic symbol and coordinates.
 """
 function parse_xyz_line(line::String)
     parts = split(strip(line))
-    symbol = Symbol(parts[1])
+    symbol = Symbol(parts[1]) # Julia symbol, like :C, :N, etc.
     x = parse(Float64, parts[2])
     y = parse(Float64, parts[3])
-    return symbol, x, y
+    z = parse(Float64, parts[4])
+    return symbol, x, y, z
 end
 
 """
-    calculate_connectivity(positions::Vector{SVector{2,Float64}})::Matrix{Int}
+    calculate_connectivity(positions::Vector{SVector{3,Float64}})::Matrix{Int}
 
 Calculate the connectivity matrix based on atomic positions.
 Returns a symmetric matrix where 1 indicates bonded atoms and 0 indicates non-bonded atoms.
 """
-function calculate_connectivity(positions::Vector{SVector{2,Float64}})::Matrix{Int}
+function calculate_connectivity(positions::Vector{SVector{3,Float64}})::Matrix{Int}
     n_atoms = length(positions)
     connectivity = zeros(Int, n_atoms, n_atoms)
     
@@ -421,9 +422,9 @@ function read_geometry(filename::String)::MolecularSystem
     temp_atoms = Atom[]
     
     for i in 2:(n_atoms_total+1)
-        symbol, x, y = parse_xyz_line(lines[i])
+        symbol, x, y, z = parse_xyz_line(lines[i])
         symbol == :H && continue  # skip hydrogen
-        push!(temp_atoms, create_atom(symbol, x, y)) # Nb: only works for C and N!
+        push!(temp_atoms, create_atom(symbol, x, y, z)) # Nb: only works for C and N!
     end
     
     positions = [atom.position for atom in temp_atoms]
@@ -486,11 +487,11 @@ function Base.show(io::IO, mime::MIME"text/plain", system::MolecularSystem)
     
     # Print atom information in table format
     println(io, "\nAtom Properties:")
-    println(io, " #  Atom    X (Å)    Y (Å)   Bonds  Site E (eV)  Hubbard U (eV)")
+    println(io, " #  Atom    X (Å)    Y (Å)   Z (Å)   Bonds  Site E (eV)  Hubbard U (eV)")
     println(io, "─"^65)  # Unicode box drawing character for line
     for (i, atom) in enumerate(system.atoms)
-        @printf(io, "%2d  %2s   %7.3f  %7.3f    %d     %8.3f    %8.3f\n",
-                i, atom.symbol, atom.position[1], atom.position[2],
+        @printf(io, "%2d  %2s   %7.3f  %7.3f  %7.3f    %d     %8.3f    %8.3f\n",
+                i, atom.symbol, atom.position[1], atom.position[2], atom.position[3],
                 atom.n_bonds, atom.site_energy, atom.Hubbard_U)
     end
     
