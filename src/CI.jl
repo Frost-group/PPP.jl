@@ -57,7 +57,15 @@ function generate_double_excitations(n_orbs::Int, n_occ::Int)
     return configs
 end
 
-# Matrix elements using PPP Hamiltonian
+# Generates all single and double excitations
+function generate_excitations(n_orbs::Int, n_occ::Int)
+    configs = Configuration[]
+    singles = generate_single_excitations(n_orbs, n_occ)
+    doubles = generate_double_excitations(n_orbs, n_occ)
+    configs = vcat(singles,doubles)
+end
+
+# NOT IN USE: Matrix elements using PPP Hamiltonian
 function calculate_ci_matrix_element(config1::Configuration, config2::Configuration, 
                                    scf_result::SCFResult, system::MolecularSystem)
     if config1.type == SingleExcitation && config2.type == SingleExcitation
@@ -96,28 +104,7 @@ function transform_two_electron_integral(i::Int, a::Int, j::Int, b::Int, scf_res
               for μ in axes(C,1), ν in axes(C,1))
 end
 
-function calculate_two_electron_term(i::Int, a::Int, scf_result::SCFResult)
-    C = scf_result.eigenvectors
-    V = scf_result.V_raw
-
-    n_sites = size(V, 1)
-    term = 0.0
-    
-    # Calculate ⟨ia|ia⟩ - ⟨ii|aa⟩
-    for μ in 1:n_sites, ν in 1:n_sites
-        for λ in 1:n_sites, σ in 1:n_sites
-            # Direct term ⟨ia|ia⟩
-            term += C[μ,i] * C[ν,a] * V[μ,ν] * C[λ,i] * C[σ,a]
-            
-            # Exchange term -⟨ii|aa⟩
-            term -= C[μ,i] * C[ν,i] * V[μ,ν] * C[λ,a] * C[σ,a]
-        end
-    end
-    
-    return term
-end
-
-# Calculate oscillator strengths using transition dipoles
+# NOT IN USE: Calculate oscillator strengths using transition dipoles
 function calculate_oscillator_strength(config::Configuration, scf_result::SCFResult, 
                                      system::MolecularSystem)
     config.type != SingleExcitation && return 0.0
@@ -137,36 +124,23 @@ Calculate CIS matrix element ⟨Φᵢᵃ|H|Φⱼᵇ⟩ using PPP Hamiltonian
 function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
     if singlet==true 
         if i == j && a == b
-            # Diagonal element
+            # Singlet Diagonal element
             orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
             return orbital_energy_diff + 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         else
+            # Singlet Off-Diagonal element
             return 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         end
     else
         if i == j && a == b
-            # Diagonal element
+            # Triplet Diagonal element
             orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
             return orbital_energy_diff - transform_two_electron_integral(i,j,a,b, scf_result)
         else
+            # Triplet Off-Diagonal element
             return - transform_two_electron_integral(i,j,a,b, scf_result)
         end
     end
-end
-
-
-"""
-Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
-"""
-function calculate_cisd_matrix_element(i::Int, j::Int, a::Int, b::Int, 
-                                     k::Int, l::Int, c::Int, d::Int, scf_result::SCFResult)
-    if i == k && j == l && a == c && b == d
-        # Diagonal: ⟨Φᵢⱼᵃᵇ|H|Φᵢⱼᵃᵇ⟩
-        return (scf_result.energies[a] + scf_result.energies[b] - 
-                scf_result.energies[i] - scf_result.energies[j]) +
-                scf_result.K[a,b] - scf_result.K[i,j]
-    end
-    return 0.0
 end
 
 function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
@@ -202,7 +176,7 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     end
     
     # Print CIS matrix
-    println("\nCIS matrix:")
+    println("\nSinglet CIS matrix:")
     for i in 1:min(5, n_configs)
         for j in 1:min(5, n_configs)
             @printf(" %8.3f", H_S[i,j])
@@ -210,7 +184,7 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         println()
     end
 
-    println("\nCIS matrix:")
+    println("\nTriplet CIS matrix:")
     for i in 1:min(5, n_configs)
         for j in 1:min(5, n_configs)
             @printf(" %8.3f", H_T[i,j])
@@ -229,10 +203,10 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         μ = zeros(2)  # transition dipole in x,y
         for (idx, config) in enumerate(configs)
             # Sum over all configurations contributing to this state
+            i, a = config.from_orbitals[1], config.to_orbitals[1]
             for μ_idx in 1:length(system.atoms)
-                pos = system.atoms[μ_idx].position
-                i, a = config.from_orbitals[1], config.to_orbitals[1]
-                μ .+= C_S[idx,state] * pos .* (scf_result.eigenvectors[μ_idx,a] * 
+                pos = system.atoms[μ_idx].position[1:2]
+                μ .+= C_S[idx,state] * pos * (scf_result.eigenvectors[μ_idx,a] * 
                                            scf_result.eigenvectors[μ_idx,i])
             end
         end
@@ -240,8 +214,10 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         f[state] = (2/3) * ΔE * sum(abs2, μ)
     end
     
+
+
     return (CIResult(
-        "CIS",
+        "Sinlget CIS",
         E_S,
         C_S,
         configs,
@@ -250,16 +226,41 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
         ),
         CIResult(
-            "CIS",
+            "Triplet CIS",
             E_T,
             C_T,
             configs,
             [argmax(abs.(C_T[:,i])) for i in 1:n_configs],
-            f,
+            zeros(n_configs),
             ["$(c.from_orbitals[1])→$(c.to_orbitals[1])" for c in configs]
         ))
 end
 
+"""
+Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
+"""
+# FIXME : unfinished, requires all matrix elements to be coded in for double-double and double-single
+function calculate_cisd_matrix_element(config1::Configuration, config2::Configuration, 
+                                   scf_result::SCFResult, system::MolecularSystem)
+    if config1.type == SingleExcitation && config2.type == SingleExcitation
+        i, a = config1.from_orbitals[1], config1.to_orbitals[1]
+        j, b = config2.from_orbitals[1], config2.to_orbitals[1]
+        return calculate_cis_matrix_element(i, a, j, b, scf_result; singlet)
+    elseif config1.type == DoubleExcitation && config2.type == DoubleExcitation
+        i, j = config1.from_orbitals
+        a, b = config1.to_orbitals
+        k, l = config2.from_orbitals
+        c, d = config2.to_orbitals
+        
+        if i == k && j == l && a == c && b == d
+            # Diagonal element
+            return (scf_result.energies[a] + scf_result.energies[b] - 
+                   scf_result.energies[i] - scf_result.energies[j]) +
+                   scf_result.K[a,b] - scf_result.K[i,j]
+        end
+    end
+    return 0.0
+end
 
 export run_cis_calculation
 export SingleExcitation, DoubleExcitation, Configuration, CIResult
