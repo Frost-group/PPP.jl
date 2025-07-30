@@ -5,7 +5,7 @@ using Printf
 println("\n" * "="^50)
 println("Running PPP SCF Calculation")
 println("="^50)
-system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/pyrrole.xyz")
+system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/pyrrole.xyz", PPP.Bedogni2024ModelParams())
 
 # Run CIS calculation for singlet
 println("\n" * "="^50)
