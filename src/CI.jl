@@ -76,8 +76,10 @@ end
 """
 Calculate CIS matrix element ⟨Φᵢᵃ|H|Φⱼᵇ⟩ using PPP Hamiltonian
 """
+# Matrix elements obtained from 10.1016/0584-8539(72)80159-4.
 function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
     if singlet==true 
+        # Singlet matrix elements: δ_ij*F_ab - δ_ab*F_ij + 2*(ia|jb) - (ij|ab)
         if i == j && a == b
             # Singlet Diagonal element
             orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
@@ -87,6 +89,7 @@ function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result
             return 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         end
     else
+        # Triplet matrix elements: δ_ij*F_ab - δ_ab*F_ij - (ij|ab)
         if i == j && a == b
             # Triplet Diagonal element
             orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
