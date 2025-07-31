@@ -76,26 +76,25 @@ end
 """
 Calculate CIS matrix element ⟨Φᵢᵃ|H|Φⱼᵇ⟩ using PPP Hamiltonian
 """
-# Matrix elements obtained from 10.1016/0584-8539(72)80159-4.
+# Matrix elements obtained from Table 4.1 in Szabo & Ostlund: Modern Quantum Chemistry and 10.1016/0584-8539(72)80159-4.
 function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
+    ΔE = scf_result.energies[a] - scf_result.energies[i]
     if singlet==true 
-        # Singlet matrix elements: δ_ij*F_ab - δ_ab*F_ij + 2*(ia|jb) - (ij|ab)
+        # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ia|jb) - (ij|ab)
         if i == j && a == b
             # Singlet Diagonal element
-            orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
-            return orbital_energy_diff + 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
+            return ΔE+ 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         else
-            # Singlet Off-Diagonal element
+            # Singlet Off-Diagonal element (one or more kronecker delta = 0)
             return 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
         end
     else
-        # Triplet matrix elements: δ_ij*F_ab - δ_ab*F_ij - (ij|ab)
+        # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ij|ab)
         if i == j && a == b
             # Triplet Diagonal element
-            orbital_energy_diff = scf_result.energies[a] - scf_result.energies[i]
-            return orbital_energy_diff - transform_two_electron_integral(i,j,a,b, scf_result)
+            return ΔE - transform_two_electron_integral(i,j,a,b, scf_result)
         else
-            # Triplet Off-Diagonal element
+            # Triplet Off-Diagonal element (one or more kronecker delta = 0)
             return - transform_two_electron_integral(i,j,a,b, scf_result)
         end
     end
@@ -195,30 +194,43 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         ))
 end
 
+
 """
 Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
 """
 # FIXME : unfinished, requires all matrix elements to be coded in for double-double and double-single
 function calculate_cisd_matrix_element(config1::Configuration, config2::Configuration, 
-                                   scf_result::SCFResult, system::MolecularSystem)
+                                   scf_result::SCFResult; singlet::Bool=true)
     if config1.type == SingleExcitation && config2.type == SingleExcitation
         i, a = config1.from_orbitals[1], config1.to_orbitals[1]
         j, b = config2.from_orbitals[1], config2.to_orbitals[1]
-        return calculate_cis_matrix_element(i, a, j, b, scf_result; singlet)
+        if singlet==true    
+            return calculate_cis_matrix_element(i, a, j, b, scf_result; singlet)
+        else
+            return calculate_cis_matrix_element(i, a, j, b, scf_result; triplet)
+        end
     elseif config1.type == DoubleExcitation && config2.type == DoubleExcitation
         i, j = config1.from_orbitals
         a, b = config1.to_orbitals
         k, l = config2.from_orbitals
         c, d = config2.to_orbitals
-        
-        if i == k && j == l && a == c && b == d
+
+        ΔE = scf_result.energies[a] + scf_result.energies[b] - scf_result.energies[i] - scf_result.energies[j]
+
+        if singlet==true 
+            if i == k && j == l && a == c && b == d
             # Diagonal element
-            return (scf_result.energies[a] + scf_result.energies[b] - 
-                   scf_result.energies[i] - scf_result.energies[j]) +
-                   scf_result.K[a,b] - scf_result.K[i,j]
+                ΔE = scf_result.energies[a] + scf_result.energies[b] - scf_result.energies[i] - scf_result.energies[j]
+                return ΔE + 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
+            end
+            if i == k && j == l && a == c && b == d
+            # Diagonal element
+            return ΔE - transform_two_electron_integral(i,j,a,b, scf_result)
+            end            
         end
+    else
+        return 0.0
     end
-    return 0.0
 end
 
 export run_cis_calculation
