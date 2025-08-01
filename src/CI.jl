@@ -81,28 +81,32 @@ Triplet matrix elements from:
     Gamba, A., Tantardini, G.F., Simonetta, M., 1972. 
     A study of ground and excited states of biphenyl by the “Molecules in Molecules” method. Spectrochimica Acta Part A: Molecular Spectroscopy 28, 1877–1888. 
     https://doi.org/10.1016/0584-8539(72)80159-4
-    
+
 """
-function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
-    ΔE = scf_result.energies[a] - scf_result.energies[i]
-    if singlet==true 
-        # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ia|jb) - (ij|ab)
-        if i == j && a == b
-            # Singlet Diagonal element
-            return ΔE+ 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
-        else
-            # Singlet Off-Diagonal element (one or more kronecker delta = 0)
-            return 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
-        end
+function calculate_singlet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
+    ε = @view scf_result.energies[:]
+
+    # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ia|jb) - (ij|ab)
+    if i == j && a == b
+        # Singlet Diagonal element
+        return (ε[a]-ε[i]) + 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
     else
-        # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ij|ab)
-        if i == j && a == b
-            # Triplet Diagonal element
-            return ΔE - transform_two_electron_integral(i,j,a,b, scf_result)
-        else
-            # Triplet Off-Diagonal element (one or more kronecker delta = 0)
-            return - transform_two_electron_integral(i,j,a,b, scf_result)
-        end
+        # Singlet Off-Diagonal element (one or more kronecker delta = 0)
+        return 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result) 
+    end
+end 
+
+
+function calculate_triplet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
+    ε = @view scf_result.energies[:]
+    
+    # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ij|ab)
+    if i == j && a == b
+        # Triplet Diagonal element
+        return (ε[a]-ε[i]) - transform_two_electron_integral(i,j,a,b, scf_result)
+    else
+        # Triplet Off-Diagonal element (one or more kronecker delta = 0)
+        return -transform_two_electron_integral(i,j,a,b, scf_result)
     end
 end
 
@@ -132,9 +136,9 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     for p in 1:n_configs, q in 1:p
         i, a = configs[p].from_orbitals[1], configs[p].to_orbitals[1]
         j, b = configs[q].from_orbitals[1], configs[q].to_orbitals[1]
-        H_S[p,q] = calculate_cis_matrix_element(i,a,j,b,scf_result; singlet=true)
+        H_S[p,q] = calculate_singlet_cis_matrix_element(i,a,j,b,scf_result)
         H_S[q,p] = H_S[p,q]
-        H_T[p,q] = calculate_cis_matrix_element(i,a,j,b,scf_result; singlet=false)
+        H_T[p,q] = calculate_triplet_cis_matrix_element(i,a,j,b,scf_result)
         H_T[q,p] = H_T[p,q]
     end
     
