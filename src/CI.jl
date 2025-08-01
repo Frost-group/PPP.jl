@@ -208,9 +208,9 @@ function calculate_cisd_matrix_element(config1::Configuration, config2::Configur
         i, a = config1.from_orbitals[1], config1.to_orbitals[1]
         j, b = config2.from_orbitals[1], config2.to_orbitals[1]
         if singlet==true    
-            return calculate_cis_matrix_element(i, a, j, b, scf_result; singlet)
+            return calculate_singlet_cis_matrix_element(i, a, j, b, scf_result)
         else
-            return calculate_cis_matrix_element(i, a, j, b, scf_result; triplet)
+            return calculate_triplet_cis_matrix_element(i, a, j, b, scf_result)
         end
     elseif config1.type == DoubleExcitation && config2.type == DoubleExcitation
         i, j = config1.from_orbitals
