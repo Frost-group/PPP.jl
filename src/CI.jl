@@ -75,8 +75,14 @@ end
 
 """
 Calculate CIS matrix element ⟨Φᵢᵃ|H|Φⱼᵇ⟩ using PPP Hamiltonian
+
+Singlet matrix elements from Table 4.1 in Szabo & Ostlund: Modern Quantum Chemistry (Singlets) 
+Triplet matrix elements from: 
+    Gamba, A., Tantardini, G.F., Simonetta, M., 1972. 
+    A study of ground and excited states of biphenyl by the “Molecules in Molecules” method. Spectrochimica Acta Part A: Molecular Spectroscopy 28, 1877–1888. 
+    https://doi.org/10.1016/0584-8539(72)80159-4
+    
 """
-# Matrix elements obtained from Table 4.1 in Szabo & Ostlund: Modern Quantum Chemistry and 10.1016/0584-8539(72)80159-4.
 function calculate_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult; singlet::Bool=true)
     ΔE = scf_result.energies[a] - scf_result.energies[i]
     if singlet==true 
