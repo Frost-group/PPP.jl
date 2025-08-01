@@ -1,8 +1,8 @@
 using PPP
 using Test
+using Printf
 
-@testset "Validate Bedogni2024ModelParams with 2T-7N" begin
-    # Test that default parameters work without explicit parameter passing
+@testset "Validate Bedogni2024ModelParams with 2T-7N c.f. Bedogni2024 published values" begin
     system, huckel_result, scf_result = run_ppp_calculation("../molecules/2T-7N.xyz", Bedogni2024ModelParams())
     
     @test scf_result.converged
@@ -14,7 +14,7 @@ using Test
     @test carbon_count == 6
     @test nitrogen_count == 7
 
-# From raw output on GitHub of Bedogni2024 
+# From raw output on GitHub of Bedogni2024 : https://github.com/francescodimaiolo/Hartree-Fock_PPP_tool/blob/main/output.out
 # Huckel MO energies (eV)
 # 7    -5.00000
 # 8     0.54229
@@ -37,4 +37,24 @@ using Test
 
     @test scf_result.total_energy ≈ -47.0167692550647 atol=1e-2
 
+end
+
+
+# Validate CIS calculation
+@testset "Validate CIS calculation with 2T-7N c.f. Bedogni2024 published values" begin
+    system, huckel_result, scf_result = run_ppp_calculation("../molecules/2T-7N.xyz", Bedogni2024ModelParams())
+    singlet, triplet = run_cis_calculation(system, scf_result)
+
+#Reference values courtesy of PlotDigitizer, lightly edited. Fig 4d: 2T-7N at different levels of theory
+    @test triplet.energies[1] ≈ 3.428550679531072 atol=1e-2
+    @test triplet.energies[2] ≈ 3.947089947089947 atol=1e-2
+
+    @test singlet.energies[1] ≈ 4.052910052910053 atol=1e-2
+    @test singlet.energies[2] ≈ 5.216931216931217 atol=1e-2
+
+    # Copy paste so we can see how close we are getting. 
+    @printf("T1: %.4f T1(Bedogni2024): %.4f diff: %.4f\n", triplet.energies[1], 3.428550679531072, triplet.energies[1] - 3.428550679531072)
+    @printf("S1: %.4f S1(Bedogni2024): %.4f diff: %.4f\n", singlet.energies[1], 4.052910052910053, singlet.energies[1] - 4.052910052910053)
+    @printf("T2: %.4f T2(Bedogni2024): %.4f diff: %.4f\n", triplet.energies[2], 3.947089947089947, triplet.energies[2] - 3.947089947089947)
+    @printf("S2: %.4f S2(Bedogni2024): %.4f diff: %.4f\n", singlet.energies[2], 5.216931216931217, singlet.energies[2] - 5.216931216931217)
 end
