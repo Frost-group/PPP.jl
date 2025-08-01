@@ -133,17 +133,17 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     end
     
     # Print CIS matrix
-    println("\nSinglet CIS matrix:")
-    for i in 1:min(5, n_configs)
-        for j in 1:min(5, n_configs)
+    println("\nFirst 10-block of Singlet CIS matrix:")
+    for i in 1:min(10, n_configs)
+        for j in 1:min(10, n_configs)
             @printf(" %8.3f", H_S[i,j])
         end
         println()
     end
 
-    println("\nTriplet CIS matrix:")
-    for i in 1:min(5, n_configs)
-        for j in 1:min(5, n_configs)
+    println("\nFirst 10-block of Triplet CIS matrix:")
+    for i in 1:min(10, n_configs)
+        for j in 1:min(10, n_configs)
             @printf(" %8.3f", H_T[i,j])
         end
         println()
@@ -153,7 +153,7 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     E_S, C_S = eigen(Symmetric(H_S))
     E_T, C_T = eigen(Symmetric(H_T))
     
-    
+   
     # Calculate oscillator strengths
     f = zeros(n_configs)
     for state in 1:n_configs
@@ -171,7 +171,15 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         f[state] = (2/3) * ΔE * sum(abs2, μ)
     end
     
+    println("Singlet excitations:")
+    for i in 1:n_configs
+        @printf("ε[%d] = %8.3f eV f = %8.3f \n", i, E_S[i], f[i])
+    end
 
+    println("Triplet excitations:")
+    for i in 1:n_configs
+        @printf("ε[%d] = %8.3f eV f = %8.3f \n", i, E_T[i], f[i])
+    end
 
     return (
         CIResult(
