@@ -85,29 +85,14 @@ Triplet matrix elements from:
 """
 function calculate_singlet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     ε = @view scf_result.energies[:]
-
     # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ia|jb) - (ij|ab)
-    if i == j && a == b
-        # Singlet Diagonal element
-        return (ε[a]-ε[i]) + 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
-    else
-        # Singlet Off-Diagonal element (one or more kronecker delta = 0)
-        return 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result) 
-    end
+    return (ε[a]-ε[i])*((i==j) && (a==b)) + 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
 end 
 
-
 function calculate_triplet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
-    ε = @view scf_result.energies[:]
-    
+    ε = @view scf_result.energies[:]    
     # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ij|ab)
-    if i == j && a == b
-        # Triplet Diagonal element
-        return (ε[a]-ε[i]) - transform_two_electron_integral(i,j,a,b, scf_result)
-    else
-        # Triplet Off-Diagonal element (one or more kronecker delta = 0)
-        return -transform_two_electron_integral(i,j,a,b, scf_result)
-    end
+    return (ε[a]-ε[i])*((i==j) && (a==b)) - transform_two_electron_integral(i,j,a,b, scf_result)
 end
 
 function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
