@@ -65,11 +65,11 @@ function generate_excitations(n_orbs::Int, n_occ::Int)
     configs = vcat(singles,doubles)
 end
 
-# Transform PPP two-electron integrals from AO to MO basis
-function transform_two_electron_integral(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
+# Transform PPP two-electron integrals from AO to MO basis: (ij|ab)
+function transform_two_electron_integral(i::Int, j::Int, a::Int, b::Int, scf_result::SCFResult)
     C = scf_result.eigenvectors
     V = scf_result.V_raw
-    return sum(C[μ,i] * C[μ,a] * V[μ,ν] * C[ν,j] * C[ν,b]
+    return sum(C[μ,i] * C[μ,j] * C[ν,a] * C[ν,b] * V[μ,ν]
               for μ in axes(C,1), ν in axes(C,1))
 end
 
@@ -85,14 +85,14 @@ Triplet matrix elements from:
 """
 function calculate_singlet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     ε = @view scf_result.energies[:]
-    # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ia|jb) - (ij|ab)
-    return (ε[a]-ε[i])*((i==j) && (a==b)) + 2*transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
+    # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ai|jb) - (ab|ji)
+    return (ε[a]-ε[i])*((i==j) && (a==b)) + 2*transform_two_electron_integral(a,i,j,b, scf_result) - transform_two_electron_integral(a,b,j,i, scf_result)
 end 
 
 function calculate_triplet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     ε = @view scf_result.energies[:]    
-    # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ij|ab)
-    return (ε[a]-ε[i])*((i==j) && (a==b)) - transform_two_electron_integral(i,j,a,b, scf_result)
+    # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ab|ji)
+    return (ε[a]-ε[i])*((i==j) && (a==b)) - transform_two_electron_integral(a,b,j,i, scf_result)
 end
 
 function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
@@ -202,40 +202,9 @@ end
 Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
 """
 # FIXME : unfinished, requires all matrix elements to be coded in for double-double and double-single
-function calculate_cisd_matrix_element(config1::Configuration, config2::Configuration, 
-                                   scf_result::SCFResult; singlet::Bool=true)
-    if config1.type == SingleExcitation && config2.type == SingleExcitation
-        i, a = config1.from_orbitals[1], config1.to_orbitals[1]
-        j, b = config2.from_orbitals[1], config2.to_orbitals[1]
-        if singlet==true    
-            return calculate_singlet_cis_matrix_element(i, a, j, b, scf_result)
-        else
-            return calculate_triplet_cis_matrix_element(i, a, j, b, scf_result)
-        end
-    elseif config1.type == DoubleExcitation && config2.type == DoubleExcitation
-        i, j = config1.from_orbitals
-        a, b = config1.to_orbitals
-        k, l = config2.from_orbitals
-        c, d = config2.to_orbitals
-
-        ΔE = scf_result.energies[a] + scf_result.energies[b] - scf_result.energies[i] - scf_result.energies[j]
-
-        if singlet==true 
-            if i == k && j == l && a == c && b == d
-            # Diagonal element
-                ΔE = scf_result.energies[a] + scf_result.energies[b] - scf_result.energies[i] - scf_result.energies[j]
-                return ΔE + 2 * transform_two_electron_integral(i,a,j,b, scf_result) - transform_two_electron_integral(i,j,a,b, scf_result)
-            end
-            if i == k && j == l && a == c && b == d
-            # Diagonal element
-            return ΔE - transform_two_electron_integral(i,j,a,b, scf_result)
-            end            
-        end
-    else
-        return 0.0
-    end
+function calculate_singlet_cisd_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
+    ε = @view scf_result.energies[:]
 end
 
-export run_cis_calculation
+export run_cis_calculation, run_cisd_calculation
 export SingleExcitation, DoubleExcitation, Configuration, CIResult
-
