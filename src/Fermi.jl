@@ -1,60 +1,88 @@
-# Interface with Fermi.jl for all that CI goodness
+# Interface with Fermi.jl for PPP -> Fermi wavefunction handoff
 
-using PPP, Fermi
+using PPP
+using Fermi
+using LinearAlgebra
 
-system, huckel_result, scf_result = run_ppp_calculation("molecules/2T-7N.xyz", Bedogni2024ModelParams())
-
-function FermiRHF(system, scf_result)
-    # 1st argument: molecule object
-    molstringA="""
-H 0 0 1.0
-H 0 0 2.0
-H 0 0 3.0
-H 0 0 4.0
-H 0 0 5.0
-H 0 0 6.0
-H 0 0 7.0
-H 0 0 8.0
-H 0 0 9.0
-H 0 0 10.0
-H 0 0 11.0
-H 0 0 12.0
-H 0 0 13.0
 """
-# I'm trying to hack in a 13 state basis, as I think Fermi.jl uses the molecule.Nα and molecule.Nβ as indices
+    to_fermi_rhf(system::PPP.MolecularSystem, scf_result::PPP.SCFResult)
+
+Construct a `Fermi.HartreeFock.RHF` wavefunction from PPP SCF results with
+consistent dimensions and electron count.
+
+Notes:
+- Uses an identity AO overlap (orthonormal π-site basis).
+- Sets the molecule charge so that total electrons match 2×ndocc.
+- Uses multiplicity 1 for closed-shell (even-electron) cases, 2 otherwise.
+"""
+function to_fermi_rhf(system::PPP.MolecularSystem, scf_result::PPP.SCFResult)
+    # Dimensions
+    n_sites = size(scf_result.eigenvectors, 1)
+    ndocc = scf_result.n_occupied
+    nvir = n_sites - ndocc
+
+    # OK, this is utterly horrific, but I got it working. 
+#   Essentially we put a Hydrogen everywhere there is a PPP site, and then request a STO-3G basis, which tricks all of the Fermi machinery which assumes Gaussian orbitals into treatin the PPP orbitals correctly. I am so so sorry ~ Jarv.
+# We use element H for all sites; the charge is adjusted to match electrons = 2*ndocc.
+    coords = [a.position for a in system.atoms]
+    @assert length(coords) == n_sites
+    # Compose XYZ-like molstring for Fermi.Molecule
+    buf = IOBuffer()
+    for r in coords
+        # element x y z
+        println(buf, "H $(r[1]) $(r[2]) $(r[3])")
+    end
+    molstring = String(take!(buf))
+
+    total_Z = n_sites                    # Z=1 per H
+    total_electrons = 2 * ndocc          # closed-shell electrons for PPP
+    charge = total_Z - total_electrons   # electrons = Z - charge
+    multiplicity = iseven(total_electrons) ? 1 : 2
+    # Ensure Fermi global options reflect this molecule, so downstream integral helpers
+    # use consistent AO basis and electron count
+    Fermi.Options.set("molstring", molstring)
+    Fermi.Options.set("unit", "angstrom")
+    Fermi.Options.set("charge", charge)
+    Fermi.Options.set("multiplicity", multiplicity)
+    Fermi.Options.set("basis", "sto-3g")
 
     molecule = Fermi.Molecule(
-        molstring=molstringA,
+        molstring=molstring,
         unit=:angstrom,
-        charge=0,
-        multiplicity=2
+        charge=charge,
+        multiplicity=multiplicity,
     )
 
-    # 2nd argument: energy
-    energy = scf_result.total_energy
-    # 3rd argument: Number of doubly occ orbitals
-    ndocc = scf_result.n_occupied
-    # 4th argument: Number of virtual orbitals
-    nvir = size(scf_result.eigenvectors,1) - ndocc
-    # 5th argument: RHFOrbitals object
-    orbitals = Fermi.Orbitals.RHFOrbitals(molecule, "PPP", [scf_result.F[a,a] for a in 1:size(scf_result.F,1)], energy, scf_result.K)
-    # 6th and 7th, convergency parameters. We will skip those for now.
+    # MO data from PPP SCF
+    mo_energies = scf_result.energies
+    mo_coefficients = scf_result.eigenvectors
 
-    return Fermi.HartreeFock.RHF(molecule, energy, ndocc, nvir, orbitals, 0.0, 0.0)
+    # Fermi.Orbitals.RHFOrbitals expects:
+    #   (molecule::Molecule, basis::String, eps::Vector{Float64}, sd_energy::Float64, C::Matrix{Float64})
+    orbitals = Fermi.Orbitals.RHFOrbitals(
+        molecule,
+        "sto-3g",
+        mo_energies,
+        scf_result.total_energy,
+        mo_coefficients,
+    )
+
+    hf_energy = scf_result.total_energy
+    return Fermi.HartreeFock.RHF(molecule, hf_energy, ndocc, nvir, orbitals, 0.0, 0.0)
 end
 
-# Generate Fermi.jl objects, and try and do a calculation with them 
-wfn=FermiRHF(system,scf_result)
-@energy wfn => mp2 
+# Example usage (uncomment to run manually):
+using PPP
+sys, huckel, scf = PPP.run_ppp_calculation("molecules/pyrrole.xyz", PPP.Bedogni2024ModelParams())
+wfn = to_fermi_rhf(sys, scf)
+@energy wfn => mp2
 
-# attempts to start calculation, but fails with error: 
-# ERROR: LoadError: DimensionMismatch: non-matching sizes in contracted dimensions
-# Stacktrace:
-#   [1] dimcheck_tensorcontract
-#     @ ~/.julia/packages/TensorOperations/RaU9j/src/implementation/abstractarray.jl:167 [inlined]
-#   [2] tensorcontract!
-#     @ ~/.julia/packages/TensorOperations/RaU9j/src/implementation/abstractarray.jl:145 [inlined]
-#   [3] tensorcontract!
-#     @ ~/.julia/packages/TensorOperations/RaU9j/src/implementation/abstractarray.jl:145 [inlined]
-#   [4] tensorcontract!
-#     @ ~/.julia/packages/TensorOperations/RaU9j/src/implementation/abstractarray.jl:145 [inlined]
+# CCSD: create integral helpers explicitly (does not dispatch on RHF)
+moints = Fermi.Integrals.IntegralHelper{Float64}(orbitals=wfn.orbitals)
+aoints = Fermi.Integrals.IntegralHelper{Float64}(molecule=wfn.molecule)
+ccsd = Fermi.CoupledCluster.RCCSD(moints, aoints, Fermi.CoupledCluster.get_rccsd_alg())
+display(ccsd)
+
+# FCI: API expects (aoints, rhf)
+fci = Fermi.ConfigurationInteraction.RFCI(aoints, wfn, Fermi.ConfigurationInteraction.get_rfci_alg())
+display(fci)
