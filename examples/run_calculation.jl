@@ -5,7 +5,7 @@ using Printf
 println("\n" * "="^50)
 println("Running PPP SCF Calculation")
 println("="^50)
-system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/pyrrole.xyz", PPP.Bedogni2024ModelParams())
+system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/2T-N.xyz", PPP.Bedogni2024ModelParams())
 
 # Run CIS calculation for singlet
 println("\n" * "="^50)
@@ -45,12 +45,12 @@ end
 println("\n" * "="^50)
 println("Running CISD Calculation")
 println("="^50)
-cisd_result = PPP.run_cis_calculation(system, scf_result)
+cisd_result = PPP.run_cisd_calculation(system, scf_result)
 
 # Print CISD analysis
 println("\nCISD Analysis:")
 println("-----")
-for i in 1:5  # Show first 5 states
+for i in 1:20  # Show first 5 states
     config = cisd_result.configurations[cisd_result.dominant_configurations[i]]
     if config.type isa SingleExcitation
         @printf("State %d: ΔE = %.3f eV, f = %.4f, %d→%d excitation\n",
@@ -63,4 +63,3 @@ for i in 1:5  # Show first 5 states
                 config.to_orbitals[1], config.to_orbitals[2])
     end
 end
-
