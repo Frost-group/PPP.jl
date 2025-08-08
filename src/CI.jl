@@ -59,10 +59,9 @@ end
 
 # Generates all single and double excitations
 function generate_excitations(n_orbs::Int, n_occ::Int)
-    configs = Configuration[]
     singles = generate_single_excitations(n_orbs, n_occ)
     doubles = generate_double_excitations(n_orbs, n_occ)
-    configs = vcat(singles,doubles)
+    return vcat(singles,doubles)
 end
 
 # Transform PPP two-electron integrals from AO to MO basis: (ij|ab)
@@ -71,6 +70,13 @@ function transform_two_electron_integral(i::Int, j::Int, a::Int, b::Int, scf_res
     V = scf_result.V_raw
     return sum(C[μ,i] * C[μ,j] * C[ν,a] * C[ν,b] * V[μ,ν]
               for μ in axes(C,1), ν in axes(C,1))
+end
+
+# Transform Fock Matrix from AO to MO basis for 1 electron integrals
+function transform_fock(scf_result::SCFResult)
+    F_AO = scf_result.F
+    C = scf_result.eigenvectors
+    return C'*F_AO*C
 end
 
 """
@@ -200,10 +206,161 @@ end
 
 """
 Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
+ Attempted to use matrix elements from: 'A study of ground and excited states of biphenyl by the “Molecules in Molecules” method' https://doi.org/10.1016/0584-8539(72)80159-4
+ Notation in this paper doesn't match Szabo and Ostlund. Szabo and Ostlund does not feature matrix elements for <S|H|D> (or vice versa).
 """
-# FIXME : unfinished, requires all matrix elements to be coded in for double-double and double-single
-function calculate_singlet_cisd_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
-    ε = @view scf_result.energies[:]
+# FIXME : not working. Tried implementing using Slater-Condon rules
+# <D|H|D> matrix elements for CISD  
+function calculate_double_double_matrix_element(p::Configuration, q::Configuration, scf_result::SCFResult)
+    i, j = p.from_orbitals
+    a, b = p.to_orbitals
+    k, l = q.from_orbitals
+    c, d = q.to_orbitals
+    F = transform_fock(scf_result)
+    # Identical determinants
+    if i==k && j==l && a==c && b==d 
+        return F[a,a] + F[b,b] - F[i,i] - F[j,j] + 2*transform_two_electron_integral(a,i,j,b, scf_result) - transform_two_electron_integral(a,b,j,i, scf_result)
+    # Determinants differ by 1 spin orbital
+    elseif i!==k && j==l && a==c && b==d
+        return -F[i,k] + transform_two_electron_integral(a,i,k,b,scf_result)
+    elseif i==k && j!==l && a==c && b==d
+        return -F[j,l] + transform_two_electron_integral(a,j,l,b,scf_result)
+    elseif i==k && j==l && a!==c && b==d
+        return F[a,c] + transform_two_electron_integral(a,i,j,c,scf_result)
+    elseif i==k && j==l && a==c && b!==d
+        return F[b,d] + transform_two_electron_integral(b,i,j,d,scf_result)
+    # Determinants differ by 2 spin orbitals
+    elseif i==k && j!==l && a!==c && b==d
+        return transform_two_electron_integral(a,j,l,c,scf_result)
+    elseif i!==k && j==l && a!==c && b==d
+        return transform_two_electron_integral(a,i,k,c,scf_result)
+    elseif i!==k && j!==l && a==c && b==d
+        return transform_two_electron_integral(i,j,l,k,scf_result)
+    elseif i!==k && j==l && a==c && b!==d
+        return transform_two_electron_integral(b,i,k,d,scf_result)
+    elseif i==k && j!==l && a==c && b!==d
+        return transform_two_electron_integral(b,j,l,d,scf_result)
+    elseif i==k && j==l && a!==c && b!==d
+        return transform_two_electron_integral(a,b,d,c,scf_result)
+    # Determinants differ by 3 or more spin orbitals
+    else
+        return 0.0
+    end
+end
+
+# <S|H|D> || <D|H|S> matrix elements for CISD
+function calculate_single_double_matrix_element(p::Configuration,q::Configuration, scf_result::SCFResult)
+    i, a = p.from_orbitals[1], p.to_orbitals[1] #single case
+    j, k = q.from_orbitals # double case
+    b, c = q.to_orbitals # double case
+    F = transform_fock(scf_result)
+
+    # Determinants always differ by 2 spin orbitals
+    if i==j && a==b
+        return 2*transform_two_electron_integral(a,i,k,c, scf_result) - transform_two_electron_integral(a,c,k,i, scf_result)
+    elseif i==j && a==c
+        return 2*transform_two_electron_integral(a,i,k,b, scf_result) - transform_two_electron_integral(a,b,k,i, scf_result)
+    elseif i==k && a==b
+        return 2*transform_two_electron_integral(a,i,j,c, scf_result) - transform_two_electron_integral(a,c,j,i, scf_result)
+    elseif i==k && a==c 
+        return 2*transform_two_electron_integral(a,i,j,b, scf_result) - transform_two_electron_integral(a,b,j,i, scf_result)
+    else
+        return 0.0
+    end
+end
+
+# Builds CISD matrix from Single-Single, Single-Double, Double-Single and Double-Double
+function calculate_singlet_cisd_matrix_element(p::Configuration,q::Configuration, scf_result::SCFResult)
+    if p.type isa SingleExcitation && q.type isa SingleExcitation
+        i, a = p.from_orbitals[1], p.to_orbitals[1]
+        j, b = q.from_orbitals[1], q.to_orbitals[1]
+        return calculate_singlet_cis_matrix_element(i,a,j,b,scf_result)
+    elseif p.type isa DoubleExcitation && q.type isa DoubleExcitation
+        return calculate_double_double_matrix_element(p,q,scf_result)
+    elseif p.type isa SingleExcitation && q.type isa DoubleExcitation
+        return calculate_single_double_matrix_element(p,q,scf_result)
+    elseif p.type isa DoubleExcitation && q.type isa SingleExcitation
+        return calculate_single_double_matrix_element(q,p,scf_result)
+    else
+        return 0.0
+    end
+end
+
+# Nearly identical to run CIS calculation
+function run_cisd_calculation(system::MolecularSystem, scf_result::SCFResult)
+    n_orbs = size(scf_result.eigenvectors, 2)
+    n_occ = system.n_electrons ÷ 2
+    
+    println("\nStarting CISD calculation:")
+    println("Number of occupied orbitals: $n_occ")
+    println("Total number of orbitals: $n_orbs")
+    
+    # Print orbital energies
+    println("\nOrbital energies:")
+    for i in 1:n_orbs
+        @printf("ε[%d] = %8.3f eV\n", i, scf_result.energies[i])
+    end
+    
+    # Generate all excitations
+    configs = generate_excitations(n_orbs, n_occ)
+    n_configs = length(configs)
+    println("\nNumber of configurations: $n_configs")
+    
+    # Build CISD matrix
+    H_CISD = zeros(n_configs, n_configs)
+
+    for p in 1:n_configs, q in 1:p
+        H_CISD[p,q] = calculate_singlet_cisd_matrix_element(configs[p], configs[q], scf_result)
+        H_CISD[q,p] = H_CISD[p,q]
+    end
+    
+    # Print CISD matrix
+    println("\nFirst 10-block of CISD matrix:")
+    for i in 1:min(10, n_configs)
+        for j in 1:min(10, n_configs)
+            @printf(" %8.3f", H_CISD[i,j])
+        end
+        println()
+    end
+    
+    # Solve eigenvalue problem
+    E_CISD, C_CISD = eigen(Symmetric(H_CISD))
+
+    # Calculate oscillator strengths (Copied from CIS)
+    f = zeros(n_configs)
+    for state in 1:n_configs
+        μ = zeros(2)  # transition dipole in x,y
+        for (idx, config) in enumerate(configs)
+            # Sum over all configurations contributing to this state
+            i, a = config.from_orbitals[1], config.to_orbitals[1]
+            for μ_idx in 1:length(system.atoms)
+                pos = system.atoms[μ_idx].position[1:2]
+                μ .+= C_CISD[idx,state] * pos * (scf_result.eigenvectors[μ_idx,a] * 
+                                           scf_result.eigenvectors[μ_idx,i])
+            end
+        end
+        ΔE = E_CISD[state] * 0.0367493  # eV to a.u.
+        f[state] = (2/3) * ΔE * sum(abs2, μ)
+    end
+
+    chars = String[]
+    for config in configs
+        if config.type isa SingleExcitation
+            push!(chars, "$(config.from_orbitals[1])→$(config.to_orbitals[1])")
+        elseif config.type isa DoubleExcitation
+            push!(chars, "($(config.from_orbitals[1]),$(config.from_orbitals[2]))→($(config.to_orbitals[1]),$(config.to_orbitals[2]))")
+        end
+    end
+
+    return (CIResult(
+        "CISD",
+        E_CISD,
+        C_CISD,
+        configs,
+        [argmax(abs.(C_CISD[:,i])) for i in 1:n_configs],
+        f,
+        chars
+    ))
 end
 
 export run_cis_calculation, run_cisd_calculation
