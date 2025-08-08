@@ -6,105 +6,118 @@ using Fermi
 using LinearAlgebra
 using Printf
 
+ 
+
+# ============================================================================ #
+# Pack PPP integrals into Fermi IntegralHelpers (PPP → Fermi moints/aoints)
+# ============================================================================ #
+
 """
-    to_fermi_rhf(system::PPP.MolecularSystem, scf_result::PPP.SCFResult)
+    to_fermi_ppp_integrals(system::PPP.MolecularSystem,
+                           huckel::PPP.HuckelResult,
+                           scf::PPP.SCFResult)
+        -> (rhf::Fermi.HartreeFock.RHF,
+            moints::Fermi.Integrals.IntegralHelper,
+            aoints::Fermi.Integrals.IntegralHelper)
 
-Construct a `Fermi.HartreeFock.RHF` wavefunction from PPP SCF results with
-consistent dimensions and electron count.
-
-Notes:
-- Uses an identity AO overlap (orthonormal π-site basis).
-- Sets the molecule charge so that total electrons match 2×ndocc.
-- Uses multiplicity 1 for closed-shell (even-electron) cases, 2 otherwise.
+Create a Fermi RHF wavefunction and integral helpers backed by PPP data (ZDO/Ohno):
+- Orbital coefficients from PPP `scf.eigenvectors`
+- Orbital energies and reference energy from PPP in Hartree
+- AO ERIs in Chonky 4-index form with ZDO: (μν|ρσ) = δ_{μν} δ_{ρσ} V_raw[μ,ρ]
+- AO one-electron matrix set to Hückel Hamiltonian (eV) as `V` and `T = 0`
+These allow running Fermi methods (MP2/CCSD/FCI) over PPP integrals.
 """
-function to_fermi_rhf(system::PPP.MolecularSystem, scf_result::PPP.SCFResult)
-    # Dimensions
-    n_sites = size(scf_result.eigenvectors, 1)
-    ndocc = scf_result.n_occupied
-    nvir = n_sites - ndocc
-
-    # OK, this is utterly horrific, but I got it working. 
-#   Essentially we put a Hydrogen everywhere there is a PPP site, and then request a STO-3G basis, which tricks all of the Fermi machinery which assumes Gaussian orbitals into treatin the PPP orbitals correctly. I am so so sorry ~ Jarv.
-# We use element H for all sites; the charge is adjusted to match electrons = 2*ndocc.
+function to_fermi_ppp_integrals(system::PPP.MolecularSystem,
+                                huckel::PPP.HuckelResult,
+                                scf::PPP.SCFResult)
+    # Build minimal Fermi Molecule carrying the electron count
+    n = size(scf.eigenvectors, 1)
+    ndocc = scf.n_occupied
+    nvir = n - ndocc
     coords = [a.position for a in system.atoms]
-    @assert length(coords) == n_sites
-    # Compose XYZ-like molstring for Fermi.Molecule
     buf = IOBuffer()
     for r in coords
-        # element x y z
         println(buf, "H $(r[1]) $(r[2]) $(r[3])")
     end
     molstring = String(take!(buf))
-
-    total_Z = n_sites                    # Z=1 per H
-    total_electrons = 2 * ndocc          # closed-shell electrons for PPP
-    charge = total_Z - total_electrons   # electrons = Z - charge
-    multiplicity = iseven(total_electrons) ? 1 : 2
-    # Ensure Fermi global options reflect this molecule, so downstream integral helpers
-    # use consistent AO basis and electron count
+    charge = n - 2*ndocc
     Fermi.Options.set("molstring", molstring)
     Fermi.Options.set("unit", "angstrom")
     Fermi.Options.set("charge", charge)
-    Fermi.Options.set("multiplicity", multiplicity)
+    Fermi.Options.set("multiplicity", iseven(2*ndocc) ? 1 : 2)
     Fermi.Options.set("basis", "sto-3g")
+    molecule = Fermi.Molecule()
 
-    molecule = Fermi.Molecule(
-        molstring=molstring,
-        unit=:angstrom,
-        charge=charge,
-        multiplicity=multiplicity,
-    )
+    # Hartree ↔ eV
+    Ha2eV = 27.21138505
+    eV2Ha = 1 / Ha2eV
 
-    # MO data from PPP SCF (convert eV → Hartree for Fermi)
-    ev2au = 1 / 27.21138505
-    mo_energies = scf_result.energies .* ev2au
-    mo_coefficients = scf_result.eigenvectors
+    # Data
+    C = scf.eigenvectors                    # AO→MO (columns = MOs)
+    eps_Ha = scf.energies .* eV2Ha          # MO energies (Ha)
+    Eref_Ha = scf.total_energy * eV2Ha      # Reference energy (Ha)
 
-    # Fermi.Orbitals.RHFOrbitals expects:
-    #   (molecule::Molecule, basis::String, eps::Vector{Float64}, sd_energy::Float64, C::Matrix{Float64})
-    orbitals = Fermi.Orbitals.RHFOrbitals(
-        molecule,
-        "sto-3g",
-        mo_energies,
-        scf_result.total_energy * ev2au,
-        mo_coefficients,
-    )
+    # Construct PPP-backed RHFOrbitals and RHF (immutable types)
+    orbs_ppp = Fermi.Orbitals.RHFOrbitals(molecule, "sto-3g", eps_Ha, Eref_Ha, C)
+    rhf_ppp = Fermi.HartreeFock.RHF(molecule, Eref_Ha, ndocc, nvir, orbs_ppp, 0.0, 0.0)
 
-    hf_energy = scf_result.total_energy * ev2au
-    return Fermi.HartreeFock.RHF(molecule, hf_energy, ndocc, nvir, orbitals, 0.0, 0.0)
+    # Integral helpers
+    moints = Fermi.Integrals.IntegralHelper{Float64}(orbitals=rhf_ppp.orbitals)
+    aoints = Fermi.Integrals.IntegralHelper{Float64}(molecule=rhf_ppp.molecule, eri_type=Fermi.Integrals.Chonky())
+
+    # AO ERIs in ZDO: (μν|ρσ) = δ_{μν} δ_{ρσ} V_raw[μ,ρ]
+    V_eV = scf.V_raw
+    AOERI = Array{Float64,4}(undef, n, n, n, n)
+    @inbounds for μ in 1:n, ν in 1:n, ρ in 1:n, σ in 1:n
+        AOERI[μ,ν,ρ,σ] = (μ == ν && ρ == σ) ? (V_eV[μ, ρ] * eV2Ha) : 0.0
+    end
+    # One-electron AO: set T=0, V = Hückel AO Hamiltonian (eV) in Hartree
+    T_AO = zeros(Float64, n, n)
+    V_AO = huckel.hamiltonian .* eV2Ha
+
+    # Populate AO integral cache
+    aoints["ERI"] = AOERI
+    aoints["T"] = T_AO
+    aoints["V"] = V_AO
+    # Identity overlap (orthonormal PPP site basis)
+    aoints["S"] = Matrix{Float64}(I, n, n)
+
+    return rhf_ppp, moints, aoints
 end
 
 # Example usage (uncomment to run manually):
 using PPP
 sys, huckel, scf = PPP.run_ppp_calculation("molecules/ethene-2C.xyz", PPP.Bedogni2024ModelParams())
-wfn = to_fermi_rhf(sys, scf)
-mp2 = @energy wfn => mp2
-
-# CCSD: create integral helpers explicitly (does not dispatch on RHF)
-moints = Fermi.Integrals.IntegralHelper{Float64}(orbitals=wfn.orbitals)
-aoints = Fermi.Integrals.IntegralHelper{Float64}(molecule=wfn.molecule)
-ccsd = Fermi.CoupledCluster.RCCSD(moints, aoints, Fermi.CoupledCluster.get_rccsd_alg())
-display(ccsd)
-
-# FCI: API expects (aoints, rhf)
-fci = Fermi.ConfigurationInteraction.RFCI(aoints, wfn, Fermi.ConfigurationInteraction.get_rfci_alg())
-display(fci)
+#sys, huckel, scf = PPP.run_ppp_calculation("molecules/2T-7N.xyz", PPP.Bedogni2024ModelParams())
 
 Ha2eV = 27.21138505
-# Compare total and correlation energies across methods
+
+ppp_rhf, ppp_moints, ppp_aoints = to_fermi_ppp_integrals(sys, huckel, scf)
+
+mp2 = Fermi.MollerPlesset.RMP2(ppp_moints, ppp_aoints, Fermi.MollerPlesset.get_rmp2_alg())
+
+ccsd = Fermi.CoupledCluster.RCCSD(ppp_moints, ppp_aoints, Fermi.CoupledCluster.get_rccsd_alg())
+
+fci = Fermi.ConfigurationInteraction.RFCI(ppp_aoints, ppp_rhf, Fermi.ConfigurationInteraction.get_rfci_alg())
+
+# Trying to deduct the nuclear repulsion from FCI, but still massive disagreement with MP2 and CCSD. 
+enuc = Fermi.Molecules.nuclear_repulsion(ppp_rhf.molecule.atoms)
+println("Nuclear repulsion (FCI correction) (eV): ", enuc * Ha2eV)
+fci_energy_vnuc0 = fci.energy - enuc
+
+
 println("\nTotal Energies (eV):")
 println("Huckel: ", huckel.total_energy)
 println("PPP: ", scf.total_energy)
-
-println("SCF:  ", wfn.energy * Ha2eV)
+println("SCF:  ", ppp_rhf.energy * Ha2eV)
 println("MP2:  ", mp2.energy * Ha2eV)
 println("CCSD: ", ccsd.energy * Ha2eV)
-println("FCI:  ", fci.energy * Ha2eV)
+println("FCI (Vnuc=0):  ", fci_energy_vnuc0 * Ha2eV)
 
 println("\nCorrelation Energies (eV):")
-println("MP2:  ", mp2.energy * Ha2eV - wfn.energy * Ha2eV)
-println("CCSD: ", ccsd.energy * Ha2eV - wfn.energy * Ha2eV) 
-println("FCI:  ", fci.energy * Ha2eV - wfn.energy * Ha2eV)
+println("MP2:  ", (mp2.energy - ppp_rhf.energy) * Ha2eV)
+println("CCSD: ", (ccsd.energy - ppp_rhf.energy) * Ha2eV)
+println("FCI:  ", (fci_energy_vnuc0 - ppp_rhf.energy) * Ha2eV)
 
 
 #Reference values courtesy of PlotDigitizer, lightly edited. Fig 4d: 2T-7N at different levels of theory
