@@ -38,13 +38,25 @@ Fields:
     
     # Model parameters (eV) - using same names as original Constants
     T = -2.4        # hopping integral
+
     UC = 11.26      # carbon atom Hubbard U
     UN = 15.0       # pyrrole nitrogen Hubbard U
     UN_AZA = 15.5   # aza nitrogen Hubbard U
+
     ES_C = 0.0      # carbon site energy
     ES_NPY = -13.0  # pyrrole nitrogen site energy
     ES_NAZA = -5.0  # aza nitrogen site energy
+
     cutoff = 1.4    # bond length cutoff (Å)
+
+    # Coulson params (Z_eff and principal qunatum number)
+    Z_EFF_C = 3.25 # carbon Z effective
+    Z_EFF_NPY = 3.90 # pyrrole nitrogen Z effective
+    Z_EFF_NAZA = 4.25 # aza nitrogen Z effective
+
+    N_C = 2.0 # carbon principal quantum number
+    N_NPY = 2.0 # pyrrole nitrogen principal quantum number
+    N_NAZA = 2.0 # aza nitrogen principal quantum number
 end
 
 """
@@ -88,6 +100,8 @@ struct Atom
     nz::Int
     site_energy::Float64
     Hubbard_U::Float64
+    Z_eff::Float64
+    n_number::Float64
 end
 
 """
@@ -144,10 +158,10 @@ function create_atom(symbol::Symbol, x::Float64, y::Float64, z::Float64, params:
    # treatment of nz factor is an absolute mess, because I didn't understand what it was as I was coding along
    # FIXME: The horror that remains works, but only for C and N, and only in the one specific geometry tested 
     if symbol == :C
-        return Atom(symbol, position, 2, 1, params.ES_C, params.UC)
+        return Atom(symbol, position, 2, 1, params.ES_C, params.UC, params.Z_EFF_C, params.N_C)
     elseif symbol == :N
         # n_bonds will be updated later based on connectivity
-        return Atom(symbol, position, 0, 0, params.ES_NPY, params.UN)
+        return Atom(symbol, position, 0, 0, params.ES_NPY, params.UN, params.Z_EFF_NPY, params.N_NPY)
     else
         throw(ArgumentError("Unsupported atomic symbol: $symbol"))
     end
@@ -210,9 +224,119 @@ function calculate_n_electrons(atoms::Vector{Atom})::Int
 end
 
 # ============================================================================ #
-# Hückel Calculations
+# Slater orbital functions (from Coulson code)
 # ============================================================================ #
+"""
+Helper functions A & B for Slater orbital overlap
+"""
+function A(k::Int, p::Float64)
+    summed = 0.0
+    for i in 1:(k+1)
+        summed += factorial(k) / (p^i*factorial(k-i+1))
+    end
+    return exp(-p)*summed
+end
 
+function B(k::Int, pt::Float64)
+    summed_1  = 0.0
+    summed_2 = 0.0
+    for i in 1:(k+1)
+        term = factorial(k) / ((pt)^i *factorial(k-i+1))
+        summed_1 += term
+        summed_2 += (-1)^(k-i)*term
+    end
+    return -exp(-pt)*summed_1 - exp(pt)*summed_2
+end
+
+"""
+Calculates p and t parameters for Mulliken formulas: https://doi.org/10.1063/1.1747150
+"""
+function calculate_p_t(r::Float64, exp_1::Float64, exp_2::Float64)
+    p = r*(exp_1+exp_2)/2
+    t = (exp_1-exp_2)/(exp_1+exp_2)
+    return p,t
+end
+
+"""
+Sort orbitals to use with Mulliken's STO orbital overlap formulas:  https://doi.org/10.1063/1.1747150
+"""
+function sort_orbitals(n_1::Float64, n_2::Float64, exp_1::Float64, exp_2::Float64)
+    if n_1 > n_2
+        return n_2, n_1, exp_2, exp_1
+    elseif (n_1==n_2) && (exp_1<exp_2)
+        return n_1, n_2, exp_2, exp_1
+    else
+        return n_1, n_2, exp_1, exp_2
+    end
+end
+
+"""
+Calculates STO overlap based on Mulliken formulas:  https://doi.org/10.1063/1.1747150
+"""
+function calculate_overlap(n_1::Float64, n_2::Float64, p::Float64, t::Float64)
+    overlap = 0.0
+    if p == 0.0
+        if n_1 == n_2 == 2
+            overlap = (1-t^2)^(5/2)
+        elseif n_1 == n_2 == 3
+            overlap = (1-t^2)^(7/2)
+        elseif (n_1 ==2) && (n_2 ==3)
+            overlap = ((5/6)*(1+t)^5*(1-t)^7)^(1/2)
+        end
+    end
+
+    if t == 0.0 && (n_1 == n_2)
+        # 2p-2p
+        if n_1 == n_2 == 2
+            overlap = exp(-p)*(1+p+(2/5)*p^2+(1/15)*p^3)
+        end
+        # 3p-3p
+        if n_1 == n_2 ==3
+            overlap = exp(-p)*(1+p+(34/75)*p^2+(3/25)*p^3+(31/1575)*p^4+(1/525)*p^5)
+        end
+    else
+        pt = p*t
+        # 2p-2p
+        if n_1 == n_2 == 2
+            overlap = ((1 / 32)* p^5*(1 - t^2)^(5/2)*(A(4, p) * (B(0, pt) - B(2, pt))+ A(2, p) * (B(4, pt) - B(0, pt))+ A(0, p) * (B(2, pt) - B(4, pt))))
+        # 2p-3p
+        elseif (n_1 == 2) && (n_2 == 3)
+            if t == 0.0
+                overlap = (1/(120*sqrt(30))*p^6*(5 * A(5, p) - 6 * A(3, p) + A(1, p)))
+            else
+                overlap = (1/(32*sqrt(30)*p^6*(1+t)^(5/2)*(1-t)^(7/2)*(A(5, p) * (B(0, p * t) - B(2, pt))+ A(4, p) * (B(3, pt) - B(1, pt))+ A(3, p) * (B(4, pt) - B(0, pt))
+                + A(2, p) * (B(1, pt) - B(5, pt))+ A(1, p) * (B(2, pt) - B(4, pt)) + A(0, p) * (B(5, pt) - B(3, pt)))))
+            end
+        # 3p-3p
+        elseif n_1 == n_2 == 3
+            overlap = (1/960*p^7*(1-t^2)^(7/2)*(A(6, p) * (B(0, pt) - B(2, pt))+ A(4, p) * (2 * B(4, pt) - B(0, pt) - B(2, pt))+ A(2, p) * (2 * B(2, pt) - B(4, pt) - B(6, pt))
+                    + A(0, p) * (B(6, pt) - B(4, pt))))
+        end
+    end
+    return overlap
+end
+
+"""
+Returns Slater overlap between two Slater p orbitals
+"""
+function slater_overlap(r::Float64, n_1::Float64, n_2::Float64, exp_1::Float64, exp_2::Float64)
+    # Sort orbitals to match Mulliken formulas
+    n_1, n_2, exp_1, exp_2 = sort_orbitals(n_1,n_2,exp_1,exp_2)
+    # Calculate p & t
+    p,t = calculate_p_t(r, exp_1,exp_2)
+    # Calculate overlap
+    overlap = calculate_overlap(n_1, n_2, p, t)
+    return overlap
+end
+
+"""
+Calculates gradient of orbital overlap integral by numerical differentiation
+"""
+function slater_grad(r::Float64, n_1::Float64, n_2::Float64, exp_1::Float64, exp_2::Float64, dx::Float64)
+    f = x -> slater_overlap(x, n_1, n_2, exp_1, exp_2)
+    grad = (f(r + dx) - f(r - dx)) / (2 * dx)
+    return grad
+end
 """
     calculate_density_matrix(eigenvectors::Matrix{Float64}, n_occupied::Int)::Matrix{Float64}
 
@@ -241,6 +365,16 @@ function calculate_total_energy(energies::Vector{Float64}, n_occupied::Int)::Flo
 end
 
 """
+Calculate resonance integral (β) according to Linderberg formula: https://doi.org/10.1016/0009-2614(67)80061-7
+"""
+function calculate_beta(overlap_grad::Float64, r_ij::Float64)
+    beta_au = overlap_grad/r_ij # atomic units
+    beta_eV = beta_au * 27.2114 # converts to eV
+    @printf("β = %.6f eV\n", beta_eV)
+    return beta_eV
+end
+
+"""
     calculate_Huckel_Hamiltonian(system::MolecularSystem)::HuckelResult
 
 Calculate the Hückel Hamiltonian and its eigenvalues/eigenvectors.
@@ -254,11 +388,19 @@ function calculate_Huckel_Hamiltonian(system::MolecularSystem, params::Bedogni20
         H[i,i] = system.atoms[i].site_energy
     end
     
-    # Off-diagonal elements (hopping)
+    # Off-diagonal elements (β)
     for i in 1:n_sites
         for j in (i+1):n_sites
             if system.connectivity[i,j] == 1
-                H[i,j] = H[j,i] = params.T
+                r_ij = (norm(system.atoms[i].position - system.atoms[j].position)) * 1.88973 # Angstrom to Bohr
+                n_i = system.atoms[i].n_number
+                n_j = system.atoms[j].n_number
+                Z_eff_i = system.atoms[i].Z_eff
+                Z_eff_j = system.atoms[j].Z_eff
+                exp_i = Z_eff_i / n_i
+                exp_j = Z_eff_j / n_j
+                overlap_grad = slater_grad(r_ij, n_i, n_j, exp_i, exp_j, 0.01)
+                H[i,j] = H[j,i] = calculate_beta(overlap_grad, r_ij)
             end
         end
     end
@@ -475,9 +617,12 @@ function read_geometry(filename::String, params::Bedogni2024ModelParams)::Molecu
             nz =  n_bonds == 3 ? 2 : 1
             site_energy = n_bonds == 3 ? params.ES_NPY : params.ES_NAZA
             Hubbard_U = n_bonds == 3 ? params.UN : params.UN_AZA
-            return Atom(atom.symbol, atom.position, n_bonds, nz, site_energy, Hubbard_U)
+            Z_eff = n_bonds == 3 ? params.Z_EFF_NPY : params.Z_EFF_NAZA
+            n_number = n_bonds == 3 ? params.N_NPY : params.N_NAZA
+
+            return Atom(atom.symbol, atom.position, n_bonds, nz, site_energy, Hubbard_U, Z_eff, n_number)
         else
-            return Atom(atom.symbol, atom.position, n_bonds, nz, atom.site_energy, atom.Hubbard_U)
+            return Atom(atom.symbol, atom.position, n_bonds, nz, atom.site_energy, atom.Hubbard_U, atom.Z_eff, atom.n_number)
         end
     end
     
