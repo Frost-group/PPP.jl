@@ -32,7 +32,9 @@ Fields:
 - `ES_NAZA`: Aza nitrogen site energy (eV)
 - `cutoff`: Bond length cutoff (Å), used to define connectivity
 """
-@kwdef struct Bedogni2024ModelParams
+abstract type ModelParams end
+
+@kwdef struct Bedogni2024ModelParams <: ModelParams
     # Fundamental physical constants (computed from SI constants)
     ohnoconstant = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
     
@@ -49,7 +51,55 @@ Fields:
 
     cutoff = 1.4    # bond length cutoff (Å)
 
-    # Coulson params (Z_eff and principal qunatum number)
+    # just so code runs
+    Z_EFF_C = 3.25 # carbon Z effective
+    Z_EFF_NPY = 3.90 # pyrrole nitrogen Z effective
+    Z_EFF_NAZA = 4.25 # aza nitrogen Z effective
+
+    N_C = 2.0 # carbon principal quantum number
+    N_NPY = 2.0 # pyrrole nitrogen principal quantum number
+    N_NAZA = 2.0 # aza nitrogen principal quantum number
+end
+
+"""
+    Jorner, K., Pollice, R., Lavigne, C., Aspuru-Guzik, A., 2024. 
+    Ultrafast Computational Screening of Molecules with Inverted Singlet-Triplet Energy Gaps 
+    Using the Pariser-Parr-Pople Semiempirical Quantum Chemistry Method.
+    J. Phys. Chem. A 128, 2445-2456. https://doi.org/10.1021/acs.jpca.3c06357
+
+All energies are in eV, distances in Angstroms.
+
+Fields:
+- `ohnoconstant`: e²/4πε₀ in eV⋅Å (classical interaction energy of two point charges at 1 Å)
+- `IP_C`: Carbon atom ionisation potential (eV)
+- `IP_NPY`: Pyrrole nitrogen ionisation potential (eV)
+- `IP_NAZA`: Aza nitrogen ionisation potential (eV)
+- `EA_C`: Carbon electron affinity (eV)
+- `EA_NPY`: Pyrrole nitrogen electron affinity (eV)
+- `EA_NAZA`: Aza nitrogen electron affinity (eV)
+- `cutoff`: Bond length cutoff (Å), used to define connectivity
+- `Z_EFF`: Effective nuclear charge
+- `N_C`: Carbon atom principal quantum number
+- `N_NPY`: Pyrrole nitrogen principal quantum number
+- `N_NAZA`: Aza nitrogen principal quantum number
+"""
+@kwdef struct Jorner2024ModelParams <: ModelParams
+    # Fundamental physical constants (computed from SI constants)
+    ohnoconstant = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
+    
+    # Model parameters (eV) - using same names as original Constants
+
+    # FIXME: Hubbard U and site energy ripped from Bedogni right now
+    UC = 11.26      # carbon atom Hubbard U
+    UN = 15.0       # pyrrole nitrogen Hubbard U
+    UN_AZA = 15.5   # aza nitrogen Hubbard U
+
+    ES_C = 0.0      # carbon site energy
+    ES_NPY = -13.0  # pyrrole nitrogen site energy
+    ES_NAZA = -5.0  # aza nitrogen site energy
+
+    cutoff = 1.4    # bond length cutoff (Å)
+
     Z_EFF_C = 3.25 # carbon Z effective
     Z_EFF_NPY = 3.90 # pyrrole nitrogen Z effective
     Z_EFF_NAZA = 4.25 # aza nitrogen Z effective
@@ -153,7 +203,7 @@ end
 # Geometry and System Setup
 # ============================================================================ #
 
-function create_atom(symbol::Symbol, x::Float64, y::Float64, z::Float64, params::Bedogni2024ModelParams)
+function create_atom(symbol::Symbol, x::Float64, y::Float64, z::Float64, params::ModelParams)
     position = SVector{3,Float64}(x, y, z)
    # treatment of nz factor is an absolute mess, because I didn't understand what it was as I was coding along
    # FIXME: The horror that remains works, but only for C and N, and only in the one specific geometry tested 
@@ -187,7 +237,7 @@ end
 Calculate the connectivity matrix based on atomic positions.
 Returns a symmetric matrix where 1 indicates bonded atoms and 0 indicates non-bonded atoms.
 """
-function calculate_connectivity(positions::Vector{SVector{3,Float64}}, params::Bedogni2024ModelParams)::Matrix{Int}
+function calculate_connectivity(positions::Vector{SVector{3,Float64}}, params::ModelParams)::Matrix{Int}
     n_atoms = length(positions)
     connectivity = zeros(Int, n_atoms, n_atoms)
     
@@ -379,7 +429,7 @@ end
 
 Calculate the Hückel Hamiltonian and its eigenvalues/eigenvectors.
 """
-function calculate_Huckel_Hamiltonian(system::MolecularSystem, params::Bedogni2024ModelParams)::HuckelResult
+function calculate_Huckel_Hamiltonian(system::MolecularSystem, params::ModelParams)::HuckelResult
     n_sites = length(system.atoms)
     H = zeros(Float64, n_sites, n_sites)
     
@@ -400,7 +450,11 @@ function calculate_Huckel_Hamiltonian(system::MolecularSystem, params::Bedogni20
                 exp_i = Z_eff_i / n_i
                 exp_j = Z_eff_j / n_j
                 overlap_grad = slater_grad(r_ij, n_i, n_j, exp_i, exp_j, 0.01)
-                H[i,j] = H[j,i] = calculate_beta(overlap_grad, r_ij)
+                if params isa Jorner2024ModelParams
+                    H[i,j] = H[j,i] = calculate_beta(overlap_grad, r_ij)
+                else
+                    H[i,j] = H[j,i] = params.T
+                end
             end
         end
     end
@@ -424,7 +478,7 @@ end
 
 Calculate the Ohno-Klopman matrix elements for electron-electron interactions.
 """
-function calculate_Ohno_parameters(system::MolecularSystem, params::Bedogni2024ModelParams)::Matrix{Float64}
+function calculate_Ohno_parameters(system::MolecularSystem, params::ModelParams)::Matrix{Float64}
     n_sites = length(system.atoms)
     V = zeros(Float64, n_sites, n_sites)
     
@@ -487,7 +541,7 @@ end
 
 Perform SCF iterations to obtain the final electronic structure.
 """
-function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, params::Bedogni2024ModelParams;
+function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, params::ModelParams;
                 max_iterations::Int=1000, threshold::Float64=1e-12)::SCFResult
     n_sites = length(system.atoms)
     n_occupied = system.n_electrons ÷ 2
@@ -592,7 +646,7 @@ end
 
 Read molecular geometry from XYZ file and create a MolecularSystem instance.
 """
-function read_geometry(filename::String, params::Bedogni2024ModelParams)::MolecularSystem
+function read_geometry(filename::String, params::ModelParams)::MolecularSystem
     lines = readlines(filename)
     n_atoms_total = parse(Int, lines[1])
     
@@ -636,7 +690,7 @@ end
 
 Run a complete PPP calculation for a molecule specified in an XYZ file.
 """
-function run_ppp_calculation(xyz_file::String, params::Bedogni2024ModelParams)::Tuple{MolecularSystem,HuckelResult,SCFResult}
+function run_ppp_calculation(xyz_file::String, params::ModelParams)::Tuple{MolecularSystem,HuckelResult,SCFResult}
     system = read_geometry(xyz_file, params)
     display(system)
     
@@ -835,7 +889,7 @@ end
 
 include("CI.jl")
 
-export read_geometry, run_ppp_calculation, Bedogni2024ModelParams
+export read_geometry, run_ppp_calculation, Bedogni2024ModelParams, Jorner2024ModelParams
 
 
 end # module 
