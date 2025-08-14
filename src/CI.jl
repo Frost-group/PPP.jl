@@ -203,6 +203,43 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         ))
 end
 
+"""
+Calculate dynamic spin polarisation correction using perturbation theory
+
+Perturbation theory on CIS states according to: https://doi.org/10.1007/BF00549021
+
+"""
+function calculate_dsp(system::MolecularSystem, scf_result::SCFResult, CIS_S::CIResult, CIS_T::CIResult)
+    n_occ = system.n_electrons ÷ 2
+    n_orbs = size(scf_result.eigenvectors, 2)
+    homo_idx = n_occ
+    lumo_idx = n_occ + 1
+
+    F_MO = transform_fock(scf_result)
+    # single excitations excluding HOMO and LUMO
+    single_excitations = [(i,a) for i in 1:n_occ-1, a in n_occ+2:n_orbs]
+    
+    excitations = Dict()
+    for (i,a) in single_excitations
+        k_x = transform_two_electron_integral(i,homo_idx,homo_idx,a, scf_result)
+        k_y = transform_two_electron_integral(i,lumo_idx,lumo_idx,a, scf_result)
+
+        gap_s = F_MO[a,a] + F_MO[lumo_idx,lumo_idx] - F_MO[homo_idx,homo_idx] - F_MO[i,i] - (CIS_S.energies[1])
+        gap_t = F_MO[a,a] + F_MO[lumo_idx,lumo_idx] - F_MO[homo_idx,homo_idx] - F_MO[i,i] - (CIS_T.energies[1])
+
+        s_1 = (3/2) * (k_x - k_y)^2 / gap_s
+        t_1 = (1/2) * (k_x - k_y)^2 / gap_t
+        t_2 = (k_x + k_y)^2 / gap_t
+
+        excitations[(i,a)] = Dict("s_1" => s_1,
+            "t_1" => t_1,
+            "t_2" => t_2,
+            "dsp" => -s_1 + t_1 + t_2)
+    end
+
+    dsp = sum(excitation["dsp"] for excitation in values(excitations))
+    return dsp
+end
 
 """
 Calculate CISD matrix element ⟨Φᵢⱼᵃᵇ|H|Φₖₗᶜᵈ⟩ using PPP Hamiltonian
@@ -363,5 +400,5 @@ function run_cisd_calculation(system::MolecularSystem, scf_result::SCFResult)
     ))
 end
 
-export run_cis_calculation, run_cisd_calculation
+export run_cis_calculation, run_cisd_calculation, calculate_dsp
 export SingleExcitation, DoubleExcitation, Configuration, CIResult
