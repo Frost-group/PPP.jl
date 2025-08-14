@@ -41,6 +41,19 @@ for i in 1:min(n_singlets,5)  # Shows up to 5 gaps
             singlet.energies[i]-triplet.energies[i])
 end
 
+dsp_correction = calculate_dsp(system, scf_result, singlet, triplet)
+
+println("\n" * "="^50)
+println("DSP Correction = ", dsp_correction)
+println("="^50)
+
+println("\nDSP corrected CIS Gap Analysis:")
+println("----")
+for i in 1:min(n_singlets,5)  # Shows up to 5 gaps
+    @printf("ΔE = %.3f eV\n",
+            singlet.energies[i]-triplet.energies[i]+dsp_correction)
+end
+
 
 # Run CISD calculation
 println("\n" * "="^50)
