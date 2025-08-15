@@ -89,10 +89,10 @@ Fields:
     
     # Model parameters (eV) - using same names as original Constants
 
-    # FIXME: Hubbard U and site energy ripped from Bedogni right now
-    UC = 11.26      # carbon atom Hubbard U
-    UN = 15.0       # pyrrole nitrogen Hubbard U
-    UN_AZA = 15.5   # aza nitrogen Hubbard U
+    # FIXME: Hubbard U is ionisation potential - electron affinity from Coulson; site energies ripped from Bedogni
+    UC = 10.992      # carbon atom ionisation potential - electron affinity (11.16-0.168)
+    UN = 12.461    # pyrrole nitrogen ionisation potential - electron affinity (14.12-1.659)
+    UN_AZA = 16.754   # aza nitrogen ionisation potential - electron affinity (28.71-11.956)
 
     ES_C = 0.0      # carbon site energy
     ES_NPY = -13.0  # pyrrole nitrogen site energy
@@ -451,8 +451,10 @@ function calculate_Huckel_Hamiltonian(system::MolecularSystem, params::ModelPara
                 exp_j = Z_eff_j / n_j
                 overlap_grad = slater_grad(r_ij, n_i, n_j, exp_i, exp_j, 0.01)
                 if params isa Jorner2024ModelParams
+                    # distance dependent
                     H[i,j] = H[j,i] = calculate_beta(overlap_grad, r_ij)
                 else
+                    # fixed hopping integral
                     H[i,j] = H[j,i] = params.T
                 end
             end
@@ -483,9 +485,11 @@ function calculate_Ohno_parameters(system::MolecularSystem, params::ModelParams)
     V = zeros(Float64, n_sites, n_sites)
     
     for i in 1:n_sites
+        # diagonal elements
         V[i,i] = system.atoms[i].Hubbard_U
         
         for j in (i+1):n_sites
+            # off-diagonal elements
             r_ij = norm(system.atoms[i].position - system.atoms[j].position)
             U_i = system.atoms[i].Hubbard_U
             U_j = system.atoms[j].Hubbard_U
@@ -545,7 +549,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, params::M
                 max_iterations::Int=1000, threshold::Float64=1e-12)::SCFResult
     n_sites = length(system.atoms)
     n_occupied = system.n_electrons ÷ 2
-    
+
     P_old = copy(huckel_result.density_matrix)
     H_core = copy(huckel_result.hamiltonian)
     V = calculate_Ohno_parameters(system, params)
