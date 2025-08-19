@@ -10,6 +10,18 @@ Pariser–Parr–Pople for the win! A super-simple semi-empirical quantum chemic
 
 [DiMaiolo2023] Fortran code for the [Bedogni2024] paper. This code was validated against these outputs. https://github.com/francescodimaiolo/Hartree-Fock_PPP_tool
 
-[Jorner2023] Jorner, K., Pollice, R., Lavigne, C., Aspuru-Guzik, A. (2023, September 25). Ultrafast computational screening of molecules with inverted singlet-triplet energy gaps using the Pariser-Parr-Pople semi-empirical quantum chemistry method. ChemRxiv. https://doi.org/10.26434/chemrxiv-2023-wq1tb
+[Jorner2024] Jorner, K., Pollice, R., Lavigne, C., Aspuru-Guzik, A., 2024. Ultrafast Computational Screening of Molecules with Inverted Singlet–Triplet Energy Gaps Using the Pariser–Parr–Pople Semiempirical Quantum Chemistry Method. J. Phys. Chem. A 128, 2445–2456. https://doi.org/10.1021/acs.jpca.3c06357
 
 [Ohno1964] Ohno, K. (1964). Some remarks on the Pariser-Parr-Pople method. Theoretica Chimica Acta, 2(3), 219–227. https://doi.org/10.1007/BF00528281
+
+# Contributors
+
+2024-- Jarvist Moore Frost
+2025-- Freja Orritt
+
+These codes were created with careful reference to [Bedogni2024] (non
+Beta-dependent Huckel/PPP model, and CIS/CISD etc. results), and then
+[Jorner2024] (Beta-dependent Huckel model). 
+
+The authors are grateful for useful discussions with Tim Hele and Kjell Jorner. 
+
