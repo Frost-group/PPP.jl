@@ -11,8 +11,10 @@ const ε₀ = 8.8541878128e-12  # Vacuum permittivity (F/m)
 # ============================================================================ #
 # ModelParams
 # ============================================================================ #
+abstract type ModelParams end
+
 """
-    ModelParams
+    Bedogni2024ModelParams
     
     Simple Carbon / Nitrogen PPP model, bare Ohno exchange.
     Bedogni, M., Giavazzi, D., Di Maiolo, F., Painelli, A., 2024. 
@@ -32,10 +34,8 @@ Fields:
 - `ES_NAZA`: Aza nitrogen site energy (eV)
 - `cutoff`: Bond length cutoff (Å), used to define connectivity
 """
-abstract type ModelParams end
-
 @kwdef struct Bedogni2024ModelParams <: ModelParams
-    # Fundamental physical constants (computed from SI constants)
+    # Fundamental physical constant (directly from SI constants)
     ohnoconstant = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
     
     # Model parameters (eV) - using same names as original Constants
@@ -51,7 +51,8 @@ abstract type ModelParams end
 
     cutoff = 1.4    # bond length cutoff (Å)
 
-    # just so code runs
+    # The following are not defined in Bedogni, but we have defined them consistent with
+    # a Jorner style Hamiltonian 
     Z_EFF_C = 3.25 # carbon Z effective
     Z_EFF_NPY = 3.90 # pyrrole nitrogen Z effective
     Z_EFF_NAZA = 4.25 # aza nitrogen Z effective
@@ -174,7 +175,7 @@ end
     HuckelResult
 """
 struct HuckelResult
-    hamiltonian::Matrix{Float64}
+    Hamiltonian::Matrix{Float64}
     energies::Vector{Float64}
     eigenvectors::Matrix{Float64}
     n_occupied::Int
@@ -551,7 +552,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, params::M
     n_occupied = system.n_electrons ÷ 2
 
     P_old = copy(huckel_result.density_matrix)
-    H_core = copy(huckel_result.hamiltonian)
+    H_core = copy(huckel_result.Hamiltonian)
     V = calculate_Ohno_parameters(system, params)
     V_raw = V
     
@@ -764,7 +765,7 @@ Shows detailed Hückel calculation results including energies, orbital occupatio
 and key electronic properties.
 """
 function Base.show(io::IO, mime::MIME"text/plain", result::HuckelResult)
-    n_sites = size(result.hamiltonian, 1)
+    n_sites = size(result.Hamiltonian, 1)
     n_occupied = result.n_occupied
  
     println(io, "Hückel Calculation Results")
@@ -773,7 +774,7 @@ function Base.show(io::IO, mime::MIME"text/plain", result::HuckelResult)
     println(io, "\nHamiltonian Matrix (eV):")
     for i in 1:n_sites
         for j in 1:n_sites
-            @printf(io, " %5.1f", result.hamiltonian[i,j])
+            @printf(io, " %5.1f", result.Hamiltonian[i,j])
         end
         println(io)
     end
@@ -808,7 +809,7 @@ end
 Compact display method for HuckelResult type.
 """
 function Base.show(io::IO, result::HuckelResult)
-    n_sites = size(result.hamiltonian, 1)
+    n_sites = size(result.Hamiltonian, 1)
     @printf(io, "HuckelResult(%d atoms, E = %.3f eV)", n_sites, result.total_energy)
 end
 
