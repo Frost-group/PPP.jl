@@ -92,16 +92,13 @@ Triplet matrix elements from:
 function calculate_singlet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     ε = @view scf_result.energies[:]
     # Singlet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij + 2*(ai|jb) - (ab|ji)
-    return (ε[a]-ε[i])*((i==j) && (a==b)) 
-        + 2*transform_two_electron_integral(a,i,j,b, scf_result) 
-        - transform_two_electron_integral(a,b,j,i, scf_result)
+    return (ε[a]-ε[i])*((i==j) && (a==b)) + 2*transform_two_electron_integral(a,i,j,b, scf_result) - transform_two_electron_integral(a,b,j,i, scf_result)
 end 
 
 function calculate_triplet_cis_matrix_element(i::Int, a::Int, j::Int, b::Int, scf_result::SCFResult)
     ε = @view scf_result.energies[:]    
     # Triplet matrix elements: (ε_a-ε_i)*δ_ab*δ_ij - (ab|ji)
-    return (ε[a]-ε[i])*((i==j) && (a==b)) 
-        - transform_two_electron_integral(a,b,j,i, scf_result)
+    return (ε[a]-ε[i])*((i==j) && (a==b)) - transform_two_electron_integral(a,b,j,i, scf_result)
 end
 
 function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
