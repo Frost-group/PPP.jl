@@ -8,6 +8,9 @@ using Printf
 const q = 1.602176634e-19    # Elementary charge (C)
 const ε₀ = 8.8541878128e-12  # Vacuum permittivity (F/m)
 
+const Ha2eV = 27.21138505
+const eV2Ha = 1 / Ha2eV # ~= 0.0367
+
 # ============================================================================ #
 # ModelParams
 # ============================================================================ #
@@ -388,6 +391,7 @@ function slater_grad(r::Float64, n_1::Float64, n_2::Float64, exp_1::Float64, exp
     grad = (f(r + dx) - f(r - dx)) / (2 * dx)
     return grad
 end
+
 """
     calculate_density_matrix(eigenvectors::Matrix{Float64}, n_occupied::Int)::Matrix{Float64}
 
@@ -419,8 +423,7 @@ end
 Calculate resonance integral (β) according to Linderberg formula: https://doi.org/10.1016/0009-2614(67)80061-7
 """
 function calculate_beta(overlap_grad::Float64, r_ij::Float64)
-    beta_au = overlap_grad/r_ij # atomic units
-    beta_eV = beta_au * 27.2114 # converts to eV
+    beta_eV = overlap_grad/r_ij * Ha2eV # eV
     @printf("β = %.6f eV\n", beta_eV)
     return beta_eV
 end
@@ -897,4 +900,5 @@ include("CI.jl")
 export read_geometry, run_ppp_calculation, Bedogni2024ModelParams, Jorner2024ModelParams
 
 
-end # module 
+end # module
+
