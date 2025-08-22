@@ -11,7 +11,9 @@ const Ha2eV = 27.21138505
 const eV2Ha = 1 / Ha2eV # ~= 0.0367
 
 # Re-export model types and functions
-export AbstractModel, Bedogni2024Model, Jorner2024Model, t, γ, t_ii, t_ij, γ_ii, γ_i# ============================================================================ #
+export AbstractModel, Bedogni2024Model, Jorner2024Model, Zhang2011Model, t, γ, t_ii, t_ij, γ_ii, γ_i
+
+# ============================================================================ #
 # Types
 # ============================================================================ #
 """

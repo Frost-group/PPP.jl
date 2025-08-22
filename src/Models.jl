@@ -57,3 +57,4 @@ end
 # Include Models
 include("Models/Bedogni2024.jl")
 include("Models/Jorner2024.jl")
+include("Models/Zhang2011.jl")
