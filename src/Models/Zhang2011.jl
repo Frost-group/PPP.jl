@@ -39,6 +39,9 @@ function γ_ii(model::Zhang2011Model, system, i)
     if atom.symbol == :C
         # for all neighbours, calculate an induction contribution
         neighbours=[j for j in 1:length(system.atoms) if system.connectivity[i,j] == 1]
+        if isempty(neighbours)
+            return 11.56718  # No neighbours, no induction contribution
+        end
         Rijs = [norm(system.atoms[i].position - system.atoms[j].position) for j in neighbours]
         induction=sum(0.16640/(Rij-2.30448)^2 for Rij in Rijs) # could write this iwth a splat operator, but I think clearer this way 
         return 11.56718-induction

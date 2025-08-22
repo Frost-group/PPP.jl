@@ -1,5 +1,6 @@
 using PPP
 using Test
+using StaticArrays
 
 @testset "PPP.jl" begin
     #include("ValidateJorner2024.jl")
