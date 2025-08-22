@@ -14,6 +14,8 @@ All energies are in eV, distances in Angstroms, inferred from figure 1.
 
     Z_EFF_C=0.0 # OK, this is some weird holdover from the old interface 
     N_C=0.0 
+
+    cutoff=1.65 # Cut-off for connectivity matrix, in Angstroms
 end
 
 function t_ii(model::Zhang2011Model, system, i)

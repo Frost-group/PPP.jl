@@ -29,6 +29,7 @@ Fields:
 @kwdef struct Jorner2024Model <: AbstractModel
     # Fundamental physical constants (computed from SI constants)
     ohnoconstant = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
+    cutoff=1.4 # Cut-off for connectivity matrix, in Angstroms
     
     # Model parameters (eV) - using same names as original Constants
 

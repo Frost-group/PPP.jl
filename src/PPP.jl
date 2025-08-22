@@ -126,13 +126,12 @@ Returns a symmetric matrix where 1 indicates bonded atoms and 0 indicates non-bo
 function calculate_connectivity(positions::Vector{SVector{3,Float64}}, model::AbstractModel)::Matrix{Int}
     n_atoms = length(positions)
     connectivity = zeros(Int, n_atoms, n_atoms)
-    
-    cutoff = 1.4  # Gone back to hard coding this for now! 
+
     
     for i in 1:n_atoms
         for j in (i+1):n_atoms
             distance = norm(positions[i] - positions[j])
-            if distance < cutoff
+            if distance < model.cutoff
                 connectivity[i,j] = connectivity[j,i] = 1
             end
         end
