@@ -297,13 +297,18 @@ end
 Perform SCF iterations to obtain the final electronic structure.
 """
 function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, model::AbstractModel;
-                max_iterations::Int=1000, threshold::Float64=1e-12)::SCFResult
+                max_iterations::Int=1000, threshold::Float64=1e-12, diagonalPPP::Bool=false)::SCFResult
     n_sites = length(system.atoms)
     n_occupied = system.n_electrons ÷ 2
 
     P_old = copy(huckel_result.density_matrix)
     H_core = copy(huckel_result.Hamiltonian)
-            V = calculate_Ohno_parameters(system, model)
+    V = calculate_Ohno_parameters(system, model)
+    
+    if diagonalPPP # I am a monster...
+        V = diagm(diag(V))
+    end
+
     V_raw = V
     
     for iter in 1:max_iterations
@@ -443,7 +448,7 @@ end
 
 Run a complete PPP calculation for a molecule specified in an XYZ file.
 """
-function run_ppp_calculation(xyz_file::String, model::AbstractModel)::Tuple{MolecularSystem,HuckelResult,SCFResult}
+function run_ppp_calculation(xyz_file::String, model::AbstractModel; diagonalPPP::Bool=false)::Tuple{MolecularSystem,HuckelResult,SCFResult}
     system = read_geometry(xyz_file, model)
     display(system)
     
@@ -453,7 +458,7 @@ function run_ppp_calculation(xyz_file::String, model::AbstractModel)::Tuple{Mole
     # TODO: Check for degeneracy
 # @warn "HOMO/LUMO states show degeneracy! Results may be unreliable."
     
-    SCF_result = run_SCF(system, Huckel_result, model)
+    SCF_result = run_SCF(system, Huckel_result, model, diagonalPPP=diagonalPPP)
     display(SCF_result)
     
     return system, Huckel_result, SCF_result

@@ -143,15 +143,6 @@ function B(k::Int, pt::Float64)
 end
 
 """
-Calculates p and t parameters for Mulliken formulas: https://doi.org/10.1063/1.1747150
-"""
-function calculate_p_t(r::Float64, exp_1::Float64, exp_2::Float64)
-    p = r*(exp_1+exp_2)/2
-    t = (exp_1-exp_2)/(exp_1+exp_2)
-    return p,t
-end
-
-"""
 Sort orbitals to use with Mulliken's STO orbital overlap formulas:  https://doi.org/10.1063/1.1747150
 """
 function sort_orbitals(n_1::Float64, n_2::Float64, exp_1::Float64, exp_2::Float64)
@@ -216,8 +207,9 @@ Returns Slater overlap between two Slater p orbitals
 function slater_overlap(r::Float64, n_1::Float64, n_2::Float64, exp_1::Float64, exp_2::Float64)
     # Sort orbitals to match Mulliken formulas
     n_1, n_2, exp_1, exp_2 = sort_orbitals(n_1,n_2,exp_1,exp_2)
-    # Calculate p & t
-    p,t = calculate_p_t(r, exp_1,exp_2)
+    # Calculate p and t parameters for Mulliken formulas: https://doi.org/10.1063/1.1747150
+    p = r*(exp_1+exp_2)/2
+    t = (exp_1-exp_2)/(exp_1+exp_2)
     # Calculate overlap
     overlap = calculate_overlap(n_1, n_2, p, t)
     return overlap
