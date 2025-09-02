@@ -1,9 +1,6 @@
 using Base: @kwdef
 using LinearAlgebra
 
-# Fundamental physical constants
-const q = 1.602176634e-19    # Elementary charge (C)
-const ε₀ = 8.8541878128e-12  # Vacuum permittivity (F/m)
 
 """
     Jorner, K., Pollice, R., Lavigne, C., Aspuru-Guzik, A., 2024. 
@@ -77,11 +74,11 @@ function t_ij(model::Jorner2024Model, system, i, j)
     exp_j = Z_eff_j / n_j
     
     # Calculate overlap gradient and convert to hopping integral
-    r_bohr = distance * 1.88973  # Angstrom to Bohr
+    r_bohr = Angstrom2Bohr * distance 
     overlap_grad = slater_grad(r_bohr, n_i, n_j, exp_i, exp_j, 0.01)
-    beta_eV = overlap_grad / r_bohr * 27.21138505  # Convert to eV
+    beta = overlap_grad / r_bohr  
     
-    return beta_eV
+    return beta * Ha2eV
 end
 
 function γ_ii(model::Jorner2024Model, system, i)

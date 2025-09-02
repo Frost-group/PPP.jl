@@ -7,8 +7,14 @@ using Printf
 # Include model definitions
 include("Models.jl")
 
+# Fundamental physical constants
+const q = 1.602176634e-19    # Elementary charge (C)
+const ε₀ = 8.8541878128e-12  # Vacuum permittivity (F/m)
+# Conversion factors
 const Ha2eV = 27.21138505
 const eV2Ha = 1 / Ha2eV # ~= 0.0367
+const Angstrom2Bohr = 1.88973
+export q, ε₀, Ha2eV, eV2Ha, Angstrom2Bohr
 
 # Re-export model types and functions
 export AbstractModel, Bedogni2024Model, Jorner2024Model, Zhang2011Model, t, γ, t_ii, t_ij, γ_ii, γ_ij
