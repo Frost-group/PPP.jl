@@ -5,7 +5,7 @@ using Printf
 println("\n" * "="^50)
 println("Running PPP SCF Calculation")
 println("="^50)
-system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/2T-N.xyz", PPP.Bedogni2024ModelParams())
+system, huckel_result, scf_result = PPP.run_ppp_calculation("molecules/2T-N.xyz", Bedogni2024Model())
 
 # Run CIS calculation for singlet
 println("\n" * "="^50)
@@ -78,3 +78,4 @@ for i in 1:min(n_cisd,5)  # Show up to 5 states
                 config.to_orbitals[1], config.to_orbitals[2])
     end
 end
+
