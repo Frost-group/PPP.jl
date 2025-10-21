@@ -50,6 +50,8 @@ end
     t_ijs = []
     gamma_iis = []
     gamma_ijs = []
+    PPPs = []
+    Huckels = []
     rs = 1.30:0.01:1.60
 
     for r in rs
@@ -61,9 +63,14 @@ end
         append!(gamma_iis, γ_ii(Zhang2011Model(), system, 1))
         append!(gamma_ijs, γ_ij(Zhang2011Model(), system, 1, 2))
 
+        Huckel_result = PPP.calculate_Huckel_Hamiltonian(system, Zhang2011Model())
+        SCF_result = PPP.run_SCF(system, Huckel_result, Zhang2011Model())
+
+        append!(PPPs,SCF_result.total_energy)
+        append!(Huckels,Huckel_result.total_energy)
     end
 
-    for d in zip(rs,t_iis, t_ijs, gamma_iis, gamma_ijs)
-        @printf("%f %f %f %f %f\n", d...)
+    for d in zip(rs,t_iis, t_ijs, gamma_iis, gamma_ijs, Huckels, PPPs)
+        @printf("%f %f %f %f %f  %f %f\n", d...)
     end
 end

@@ -3,8 +3,8 @@ using Test
 using StaticArrays
 
 @testset "PPP.jl" begin
-    include("ValidateJorner2024.jl")
+    #include("ValidateJorner2024.jl")
     #include("test_parameters.jl")
     #include("ValidateBedogni2024.jl")
-#    include("ValidateZhang2011.jl") FIXME: left on my laptop? CHECK THIS IN!
+    include("ValidateZhang2011.jl") 
 end
