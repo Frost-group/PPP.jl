@@ -71,6 +71,6 @@ end
     end
 
     for d in zip(rs,t_iis, t_ijs, gamma_iis, gamma_ijs, Huckels, PPPs)
-        @printf("%f %f %f %f %f  %f %f\n", d...)
+        @printf("%f %f %f %f %f %f %f\n", d...)
     end
 end
