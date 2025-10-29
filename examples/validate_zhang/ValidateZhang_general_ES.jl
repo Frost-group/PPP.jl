@@ -6,7 +6,7 @@ using CSV, DataFrames
 
 #Calculate ground state energy for Ethene with Zhang 2011 parameters 
 
-struct ES0_result
+struct Energy_results
     rs::Vector{Float64}
     t_iis::Vector{Float64}
     t_ijs::Vector{Float64}
@@ -14,7 +14,10 @@ struct ES0_result
     gamma_ijs::Vector{Float64}
     PPPs::Vector{Float64}
     Huckels::Vector{Float64}
-    E_S0s::Vector{Float64}
+    ES0::Vector{Float64}
+    ES1::Vector{Float64}
+    ES2::Vector{Float64}
+    ET1::Vector{Float64}
 end
 
 @. E_S0(t_ii, t_ij, γ_ii, γ_ij) = 2t_ii + (γ_ii + γ_ij)/2 - sqrt(16t_ij^2 + (γ_ii - γ_ij)^2)/2
@@ -25,7 +28,12 @@ end
 
 @. E_T1(t_ii, γ_ij) = 2t_ii + γ_ij
 
-ethene_system = read_geometry("molecules/ethene.xyz", Zhang2011Model())
+#ethene_system = read_geometry("molecules/ethene.xyz", Zhang2011Model())
+
+# Run one PPP calculation for CIS calculation
+ethene_system, huckel_result, scf_result_ethene = PPP.run_ppp_calculation("molecules/ethene.xyz", Zhang2011Model())
+
+singlet, triplet = run_cis_calculation(ethene_system, scf_result_ethene)
 
 # Local helper function to deal with kruft of immutability in PPP
 function update_system_atom_position(system::PPP.MolecularSystem, atom_idx::Int, new_position::SVector{3,Float64})
@@ -60,7 +68,7 @@ println(first(df, 5))
 # First column of data file contains bond lengths (in Angstroms)
 rs = df[:, 1] #Vector{Float64}
 
-function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float64})::ES0_result
+function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float64})::Energy_results
     t_iis = []
     t_ijs = []
     gamma_iis = []
@@ -68,6 +76,9 @@ function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float
     PPPs = []
     Huckels = []
     E_S0s = []
+    E_S1s = []
+    E_S2s = []
+    E_T1s = []  
     # rs = 1.30:0.01:1.60
     for r in rs
         new_position = system.atoms[1].position + SVector{3,Float64}(r, 0.0, 0.0)
@@ -86,9 +97,12 @@ function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float
     end
 
     E_S0s = E_S0(t_iis, t_ijs, gamma_iis, gamma_ijs)
+    E_S1s = E_S1(t_iis, gamma_iis)
+    E_S2s = E_S2(t_iis, t_ijs, gamma_iis, gamma_ijs)
+    E_T1s = E_T1(t_iis, gamma_ijs)
 
     @info "Ground state energies from calculation:" E_S0s
-    return ES0_result(rs, t_iis, t_ijs, gamma_iis, gamma_ijs, PPPs, Huckels, E_S0s)
+    return Energy_results(rs, t_iis, t_ijs, gamma_iis, gamma_ijs, PPPs, Huckels, E_S0s, E_S1s, E_S2s, E_T1s)
 end
 
 ES0_ethene = vary_bond_lengths(ethene_system, rs)
