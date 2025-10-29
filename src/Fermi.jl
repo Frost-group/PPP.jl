@@ -73,7 +73,7 @@ function to_fermi_ppp_integrals(system::PPP.MolecularSystem,
     end
     # One-electron AO: set T=0, V = Hückel AO Hamiltonian (eV) in Hartree
     T_AO = zeros(Float64, n, n)
-    V_AO = huckel.hamiltonian .* eV2Ha
+    V_AO = huckel.Hamiltonian .* eV2Ha
 
     # Populate AO integral cache
     aoints["ERI"] = AOERI
@@ -87,7 +87,7 @@ end
 
 # Example usage (uncomment to run manually):
 using PPP
-sys, huckel, scf = PPP.run_ppp_calculation("molecules/ethene-2C.xyz", PPP.Bedogni2024ModelParams())
+sys, huckel, scf = PPP.run_ppp_calculation("molecules/ethene-2C.xyz", PPP.Zhang2011Model())
 #sys, huckel, scf = PPP.run_ppp_calculation("molecules/2T-7N.xyz", PPP.Bedogni2024ModelParams())
 
 Ha2eV = 27.21138505
