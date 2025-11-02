@@ -73,7 +73,7 @@ function to_fermi_ppp_integrals(system::PPP.MolecularSystem,
     end
     # One-electron AO: set T=0, V = Hückel AO Hamiltonian (eV) in Hartree
     T_AO = zeros(Float64, n, n)
-    V_AO = huckel.hamiltonian .* eV2Ha
+    V_AO = huckel.Hamiltonian .* eV2Ha
 
     # Populate AO integral cache
     aoints["ERI"] = AOERI
@@ -87,18 +87,19 @@ end
 
 # Example usage (uncomment to run manually):
 using PPP
-sys, huckel, scf = PPP.run_ppp_calculation("molecules/ethene-2C.xyz", PPP.Bedogni2024ModelParams())
+sys, huckel, scf = PPP.run_ppp_calculation("molecules/ethene-2C.xyz", PPP.Zhang2011Model())
 #sys, huckel, scf = PPP.run_ppp_calculation("molecules/2T-7N.xyz", PPP.Bedogni2024ModelParams())
 
 Ha2eV = 27.21138505
 
 ppp_rhf, ppp_moints, ppp_aoints = to_fermi_ppp_integrals(sys, huckel, scf)
 
-mp2 = Fermi.MollerPlesset.RMP2(ppp_moints, ppp_aoints, Fermi.MollerPlesset.get_rmp2_alg())
-
-ccsd = Fermi.CoupledCluster.RCCSD(ppp_moints, ppp_aoints, Fermi.CoupledCluster.get_rccsd_alg())
-
-fci = Fermi.ConfigurationInteraction.RFCI(ppp_aoints, ppp_rhf, Fermi.ConfigurationInteraction.get_rfci_alg())
+mp2 = Fermi.MollerPlesset.RMP2(ppp_moints, ppp_aoints, 
+        Fermi.MollerPlesset.get_rmp2_alg())
+ccsd = Fermi.CoupledCluster.RCCSD(ppp_moints, ppp_aoints, 
+        Fermi.CoupledCluster.get_rccsd_alg())
+fci = Fermi.ConfigurationInteraction.RFCI(ppp_moints, ppp_aoints, 
+        Fermi.ConfigurationInteraction.get_rfci_alg())
 
 # Trying to deduct the nuclear repulsion from FCI, but still massive disagreement with MP2 and CCSD. 
 enuc = Fermi.Molecules.nuclear_repulsion(ppp_rhf.molecule.atoms)
@@ -109,15 +110,16 @@ fci_energy_vnuc0 = fci.energy - enuc
 println("\nTotal Energies (eV):")
 println("Huckel: ", huckel.total_energy)
 println("PPP: ", scf.total_energy)
-println("SCF:  ", ppp_rhf.energy * Ha2eV)
+println("SCF(Fermi):  ", ppp_rhf.energy * Ha2eV)
 println("MP2:  ", mp2.energy * Ha2eV)
 println("CCSD: ", ccsd.energy * Ha2eV)
+println("FCI:  ", fci.energy * Ha2eV)
 println("FCI (Vnuc=0):  ", fci_energy_vnuc0 * Ha2eV)
 
-println("\nCorrelation Energies (eV):")
-println("MP2:  ", (mp2.energy - ppp_rhf.energy) * Ha2eV)
-println("CCSD: ", (ccsd.energy - ppp_rhf.energy) * Ha2eV)
-println("FCI:  ", (fci_energy_vnuc0 - ppp_rhf.energy) * Ha2eV)
+println("\nCorrelation Energies Ha (eV):")
+println("MP2:  ",  (mp2.energy - ppp_rhf.energy), " ", (mp2.energy - ppp_rhf.energy) * Ha2eV)
+println("CCSD: ", (ccsd.energy - ppp_rhf.energy), " ", (ccsd.energy - ppp_rhf.energy) * Ha2eV)
+println("FCI:  ", (fci_energy_vnuc0 - ppp_rhf.energy), " ", (fci_energy_vnuc0 - ppp_rhf.energy) * Ha2eV)
 
 
 #Reference values courtesy of PlotDigitizer, lightly edited. Fig 4d: 2T-7N at different levels of theory

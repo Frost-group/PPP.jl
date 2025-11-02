@@ -192,9 +192,23 @@ end
     calculate_total_energy(energies::Vector{Float64}, n_occupied::Int)::Float64
 
 Calculate the total electronic energy from orbital energies.
+Nb: If used on a HF state, double-counts electron-electron repulsion!
 """
 function calculate_total_energy(energies::Vector{Float64}, n_occupied::Int)::Float64
     2.0 * sum(energies[1:n_occupied])
+end
+
+"""
+    calculate_hf_total_energy(H_core::Matrix{Float64}, P::Matrix{Float64}, 
+                                 J::Matrix{Float64}, K::Matrix{Float64})::Float64
+
+Calculate the correct Hartree-Fock energy using the density matrix and Fock components.
+E_HF = Tr(P * H_core) + 0.5 * Tr(P * (J - K))
+This avoids double-counting the electron-electron repulsion.
+"""
+function calculate_hf_total_energy(H_core::Matrix{Float64}, P::Matrix{Float64}, 
+                                     J::Matrix{Float64}, K::Matrix{Float64})::Float64
+    return tr(P * H_core) + 0.5 * tr(P * (J - K))
 end
 
 
@@ -330,17 +344,13 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, model::Ab
 #        display(F)
 #        println("\nNew Density Matrix:")
 #        display(P_new)
-        
-        # HF ground state energy: sum of occupied orbital eigenvalues
-        E_hf = calculate_total_energy(F_eig.values, n_occupied)
-        println("HF ground state energy: $E_hf eV")
 
 # Check for convergence
 # FIXME: Make a bit more general?
         if maximum(abs.(P_new - P_old)) < threshold
             return SCFResult(
                 F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_new,
-                calculate_total_energy(F_eig.values, n_occupied),
+                calculate_hf_total_energy(H_core, P_new, J, K),
                 iter, true
             )
         end
