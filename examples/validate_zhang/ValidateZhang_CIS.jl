@@ -32,7 +32,10 @@ end
 
 @. E_T1(t_ii, γ_ij) = 2t_ii + γ_ij
 
-#ethene_system = read_geometry("molecules/ethene.xyz", Zhang2011Model())
+function remove_eqb_offset(energies::Vector{Float64})
+    offset = energies[6] # assuming equilibrium bond length at 6th element in data frame column as per Zhang2011Ethene.dat
+    return energies .- offset
+end
 
 # Run one PPP calculation for CIS calculation
 ethene_system, huckel_result, scf_result_ethene = PPP.run_ppp_calculation("molecules/ethene.xyz", Zhang2011Model())
@@ -67,10 +70,12 @@ df = CSV.read("examples/validate_zhang/Zhang2011Ethene.dat", DataFrame;
               comment="#",
               header=false)
 
-println(first(df, 5))
+# println(first(df, 5))
 
 # First column of data file contains bond lengths (in Angstroms)
 rs = df[:, 1] #Vector{Float64}
+ES0s_Zhang = df[:, 2]
+ES0s_Zhang .*= Ha2eV #Convert from Hartree to eV
 
 function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float64})::Energy_results
     t_iis = []
@@ -114,26 +119,27 @@ function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float
     # E_S2s = E_S2(t_iis, t_ijs, gamma_iis, gamma_ijs)
     ET1s_PPP = E_T1(t_iis, gamma_ijs)
 
-    @info "Ground state energies from calculation:" ES0s_PPP
+    # @info "Ground state energies from calculation:" ES0s_PPP
     return Energy_results(rs, t_iis, t_ijs, gamma_iis, gamma_ijs, PPPs, Huckels, ES0s_PPP, ES1s_PPP, ET1s_PPP, ESs_CIS, ETs_CIS)
 end
 
 Energies_ethene = vary_bond_lengths(ethene_system, rs)
 
+# Removed equilibrium offset!!!
 df_Energies_ethene = DataFrame(
     rs = Energies_ethene.rs,
     t_iis = Energies_ethene.t_iis,
     t_ijs = Energies_ethene.t_ijs,
     gamma_iis = Energies_ethene.gamma_iis,
     gamma_ijs = Energies_ethene.gamma_ijs,
-    Huckels = Energies_ethene.Huckels,
-    PPPs = Energies_ethene.PPPs,
-    ES0s_PPP = Energies_ethene.ES0s_PPP,
-    ES1s_PPP = Energies_ethene.ES1s_PPP,
-    ET1s_PPP = Energies_ethene.ET1s_PPP,
-    ESs_CIS = Energies_ethene.ESs_CIS,
-    ETs_CIS = Energies_ethene.ETs_CIS
+    ES0s_Zhang = remove_eqb_offset(ES0s_Zhang), # Zhang 2011 CASPT2 calculation
+    Huckels = remove_eqb_offset(Energies_ethene.Huckels),
+    PPPs = remove_eqb_offset(Energies_ethene.PPPs),
+    ES0s_PPP = remove_eqb_offset(Energies_ethene.ES0s_PPP),
+    ES1s_PPP = remove_eqb_offset(Energies_ethene.ES1s_PPP),
+    ET1s_PPP = remove_eqb_offset(Energies_ethene.ET1s_PPP),
+    ESs_CIS = remove_eqb_offset(Energies_ethene.ESs_CIS),
+    ETs_CIS = remove_eqb_offset(Energies_ethene.ETs_CIS)
 )
 
-CSV.write("examples/validate_zhang/ValidateZhang_CIS_output.csv", df_Energies_ethene)
-
+CSV.write("examples/validate_zhang/ValidateZhang_CIS_offset_removed.csv", df_Energies_ethene)
