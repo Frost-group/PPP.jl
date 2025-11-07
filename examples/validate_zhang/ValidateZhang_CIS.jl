@@ -107,8 +107,8 @@ function vary_bond_lengths(system::PPP.MolecularSystem, rs::AbstractVector{Float
 
         # FIXME! only works for Ethene because there's only one excitation energy from the CIS calculations
 
-        append!(ESs_CIS, singlet.energies[1]+SCF_result.total_energy) # Singlet energy + HF ground state energy = total energy of excited state
-        append!(ETs_CIS, triplet.energies[1]+SCF_result.total_energy)
+        append!(ESs_CIS, singlet.energies[1]) # vertical excitation energy
+        append!(ETs_CIS, triplet.energies[1])
 
         append!(PPPs,SCF_result.total_energy)
         append!(Huckels,Huckel_result.total_energy)
@@ -138,8 +138,8 @@ df_Energies_ethene = DataFrame(
     ES0s_PPP = remove_eqb_offset(Energies_ethene.ES0s_PPP),
     ES1s_PPP = remove_eqb_offset(Energies_ethene.ES1s_PPP),
     ET1s_PPP = remove_eqb_offset(Energies_ethene.ET1s_PPP),
-    ESs_CIS = remove_eqb_offset(Energies_ethene.ESs_CIS),
-    ETs_CIS = remove_eqb_offset(Energies_ethene.ETs_CIS)
+    ESs_CIS = Energies_ethene.ESs_CIS,
+    ETs_CIS = Energies_ethene.ETs_CIS
 )
 
 CSV.write("examples/validate_zhang/ValidateZhang_CIS_offset_removed.csv", df_Energies_ethene)
