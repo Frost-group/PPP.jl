@@ -5,14 +5,13 @@
     
     Karimi et al, ArXiv, 2508.18963v1
 
+    Initial stab at parameters: a bit unclear from the paper specifically what is going on. 
+
+    Huckel style (i.e. no distance dependence hopping), but dist. dep for γ_ij. ?
 """
 @kwdef struct Karimi2025Model <: AbstractModel
-    # I've just left this one as magic numbers for now, as I think this keeps it closer to the paper. 
-    # I suppose I'll also need a generic, numbers packed away, version of this for fitting. 
-
     Z_EFF_C=0.0 # OK, this is some weird holdover from the old interface 
     N_C=0.0 
-
     cutoff=1.65 # Cut-off for connectivity matrix, in Angstroms
 end
 
