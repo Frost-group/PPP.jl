@@ -45,7 +45,7 @@ function γ_ii(model::Zhang2011Model, system, i)
             return 11.56718  # No neighbours, no induction contribution
         end
         Rijs = [norm(system.atoms[i].position - system.atoms[j].position) for j in neighbours]
-        induction=sum(0.16640/(Rij-2.30448)^2 for Rij in Rijs) # could write this iwth a splat operator, but I think clearer this way 
+        induction=sum(0.16640/(Rij-2.30448)^2 for Rij in Rijs) # could write this with a splat operator, but I think clearer this way 
         return 11.56718-induction
     else
         error("Unsupported atom type: $(atom.symbol)")
