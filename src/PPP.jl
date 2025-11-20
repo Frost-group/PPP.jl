@@ -95,18 +95,12 @@ end
 # Geometry and System Setup
 # ============================================================================ #
 
+# FIXME: totally empty function now; everything is dealt with by
+# update_atom_params; but perhaps this should be renamed as 'create_atom' or
+# similar, and then we can get rid of that step entirely
 function create_atom(symbol::Symbol, x::Float64, y::Float64, z::Float64, model::AbstractModel)
     position = SVector{3,Float64}(x, y, z)
-    
-    if symbol == :C
-        # Carbon: 2 bonds, nz=1, will be updated later based on connectivity
-        return Atom(symbol, position, 2, 1, 0.0, 0.0, model.Z_EFF_C, model.N_C)
-    elseif symbol == :N
-        # Nitrogen: 0 bonds initially, nz=0, will be updated later based on connectivity
-        return Atom(symbol, position, 0, 0, 0.0, 0.0, model.Z_EFF_NPY, model.N_NPY)
-    else
-        throw(ArgumentError("Unsupported atomic symbol: $symbol"))
-    end
+    return Atom(symbol, position, 0, 0, 0.0, 0.0, 0.0, 0.0)
 end
 
 """
@@ -156,14 +150,12 @@ function count_bonds(connectivity::Matrix{Int}, idx::Int)::Int
 end
 
 """
-    calculate_n_electrons(atoms::Vector{Atom})::Int
+    calculate_n_electrons(atoms::Vector{Atom}, model::AbstractModel)::Int
 
 Calculate the total number of π electrons in the system.
 """
-function calculate_n_electrons(atoms::Vector{Atom})::Int
-    # Absolute terrible hack; only works for C and N
-    # FIXME: Some kind of periodic lookup table, with valency calculation c.f. group ?
-    sum(atom.symbol == :C ? 1 : (atom.n_bonds == 3 ? 2 : 1) for atom in atoms)
+function calculate_n_electrons(atoms::Vector{Atom}, model::AbstractModel)::Int
+    sum(get_pi_electrons(model, atom) for atom in atoms)
 end
 
 # ============================================================================ #
@@ -435,20 +427,12 @@ function read_geometry(filename::String, model::AbstractModel)::MolecularSystem
     # Update atoms with correct bond counts and parameters
     atoms = map(enumerate(temp_atoms)) do (i, atom)
         n_bonds = count_bonds(connectivity, i)
-        nz = atom.symbol == :N && n_bonds == 3 ? 2 : 1
-        
-        # Update Slater parameters for nitrogen based on bond count
-        if atom.symbol == :N
-            Z_eff = n_bonds == 3 ? model.Z_EFF_NPY : model.Z_EFF_NAZA
-            n_number = n_bonds == 3 ? model.N_NPY : model.N_NAZA
-        else
-            Z_eff, n_number = atom.Z_eff, atom.n_number
-        end
-        
-        return Atom(atom.symbol, atom.position, n_bonds, nz, atom.site_energy, atom.Hubbard_U, Z_eff, n_number)
+        # Create intermediate atom with correct bonds for update_atom_params to work
+        intermediate_atom = Atom(atom.symbol, atom.position, n_bonds, atom.nz, atom.site_energy, atom.Hubbard_U, atom.Z_eff, atom.n_number)
+        return update_atom_params(model, intermediate_atom)
     end
     
-    n_electrons = calculate_n_electrons(atoms)
+    n_electrons = calculate_n_electrons(atoms, model)
     
     return MolecularSystem(atoms, connectivity, n_electrons)
 end

@@ -4,7 +4,7 @@ using Printf
 using StaticArrays
 
 @testset "Validate Zhang2011Model with ethene" begin
-    system, huckel_result, scf_result = run_ppp_calculation("../molecules/ethene.xyz", Zhang2011Model())
+    system, huckel_result, scf_result = run_ppp_calculation(joinpath(@__DIR__, "../molecules/ethene.xyz"), Zhang2011Model())
     
     @test scf_result.converged
     @test length(system.atoms) == 2
@@ -22,7 +22,7 @@ using StaticArrays
 end
 
 @testset "Repro Fig 1 from Zhang2011Model" begin
-    system, huckel_result, scf_result = run_ppp_calculation("../molecules/ethene.xyz", Zhang2011Model())
+    system, huckel_result, scf_result = run_ppp_calculation(joinpath(@__DIR__, "../molecules/ethene.xyz"), Zhang2011Model())
 
     # Local helper function to deal with kruft of immutability in PPP
     function update_system_atom_position(system::PPP.MolecularSystem, atom_idx::Int, new_position::SVector{3,Float64})
@@ -74,3 +74,4 @@ end
         @printf("%f %f %f %f %f %f %f\n", d...)
     end
 end
+

@@ -1,6 +1,105 @@
 using Base: @kwdef
 using LinearAlgebra
 
+# ============================================================================ #
+# Data Tables (from coulson/parameters.py 'CRC' / 'MODERN')
+# ============================================================================ #
+
+const IP_CRC = Dict{Symbol, Float64}(
+    :B => 1.011,
+    :C => 11.164,
+    :N1 => 14.093, # Pyridine-like (1 e)
+    :N2 => 28.717, # Pyrrole-like (2 e)
+    :O1 => 17.701,
+    :O2 => 34.122,
+    :F => 40.697,
+    :Si => 9.177,
+    :P1 => 11.146,
+    :P2 => 20.732,
+    :S1 => 12.706,
+    :S2 => 23.740,
+    :Cl => 27.296
+)
+
+const EA_CRC = Dict{Symbol, Float64}(
+    :B => 0.115,
+    :C => 0.168,
+    :N1 => 1.659,
+    :N2 => 11.956,
+    :O1 => 2.456,
+    :O2 => 15.305,
+    :F => 18.519,
+    :Si => 1.925,
+    :P1 => 1.776,
+    :P2 => 10.266,
+    :S1 => 2.764,
+    :S2 => 11.648,
+    :Cl => 14.501
+)
+
+const Z_EFF_SLATER = Dict{Symbol, Float64}(
+    :B => 2.25,
+    :C => 3.25,
+    :N1 => 3.90,
+    :N2 => 4.25,
+    :O1 => 4.55,
+    :O2 => 4.9,
+    :F => 5.55,
+    :Si => 4.15,
+    :P1 => 4.80,
+    :P2 => 5.15,
+    :S1 => 5.45,
+    :S2 => 5.80,
+    :Cl => 6.45,
+    :Br => 7.95,
+    :I => 7.95
+)
+
+const N_PRINCIPAL = Dict{Symbol, Int}(
+    :B => 2,
+    :C => 2,
+    :N1 => 2,
+    :N2 => 2,
+    :O1 => 2,
+    :O2 => 2,
+    :F => 2,
+    :Si => 2,
+    :P1 => 3,
+    :P2 => 3,
+    :S1 => 3,
+    :S2 => 3,
+    :Cl => 3,
+    :Br => 4,
+    :I => 5
+)
+
+# N_STAR map from n (int) to n_star (float)
+const N_STAR_MAP = Dict{Int, Float64}(
+    1 => 1.0,
+    2 => 2.0,
+    3 => 3.0,
+    4 => 3.7,
+    5 => 4.0,
+    6 => 4.2
+)
+
+const PI_ELECTRONS = Dict{Symbol, Int}(
+    :B => 0,
+    :C => 1,
+    :N1 => 1,
+    :N2 => 2,
+    :O1 => 1,
+    :O2 => 2,
+    :F => 2,
+    :Si => 1,
+    :P1 => 1,
+    :P2 => 2,
+    :S1 => 1,
+    :S2 => 2,
+    :Cl => 2,
+    :Br => 2, 
+    :I => 2   
+)
 
 """
     Jorner, K., Pollice, R., Lavigne, C., Aspuru-Guzik, A., 2024. 
@@ -12,53 +111,37 @@ All energies are in eV, distances in Angstroms.
 
 Fields:
 - `ohnoconstant`: e²/4πε₀ in eV⋅Å (classical interaction energy of two point charges at 1 Å)
-- `UC`: Carbon atom ionisation potential (eV)
-- `UN`: Pyrrole nitrogen ionisation potential (eV)
-- `UN_AZA`: Aza nitrogen ionisation potential (eV)
-- `ES_C`: Carbon electron affinity (eV)
-- `ES_NPY`: Pyrrole nitrogen electron affinity (eV)
-- `ES_NAZA`: Aza nitrogen electron affinity (eV)
-- `Z_EFF`: Effective nuclear charge
-- `N_C`: Carbon atom principal quantum number
-- `N_NPY`: Pyrrole nitrogen principal quantum number
-- `N_NAZA`: Aza nitrogen principal quantum number
+- `IP`: Dictionary of Ionization Potentials (eV)
+- `EA`: Dictionary of Electron Affinities (eV)
+- `Z_EFF`: Dictionary of Effective Nuclear Charges
+- `N_PRINCIPAL`: Dictionary of Principal Quantum Numbers
+- `N_STAR_MAP`: Dictionary mapping n to n*
 """
 @kwdef struct Jorner2024Model <: AbstractModel
     # Fundamental physical constants (computed from SI constants)
-    ohnoconstant = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
-    cutoff=1.4 # Cut-off for connectivity matrix, in Angstroms
+    ohnoconstant::Float64 = q / (4π * ε₀ * 1e-10)  # e²/4πε₀ in eV⋅Å
+    cutoff::Float64 = 1.4 # Cut-off for connectivity matrix, in Angstroms
     
-    # Model parameters (eV) - using same names as original Constants
-
-    # FIXME: Hubbard U is ionisation potential - electron affinity from Coulson; site energies ripped from Bedogni
-    UC = 10.992      # carbon atom ionisation potential - electron affinity (11.16-0.168)
-    UN = 12.461    # pyrrole nitrogen ionisation potential - electron affinity (14.12-1.659)
-    UN_AZA = 16.754   # aza nitrogen ionisation potential - electron affinity (28.71-11.956)
-    # Eek! I think these are swapped relative to Coulson ? 
-
-    ES_C = 0.0      # carbon site energy
-    ES_NPY = -13.0  # pyrrole nitrogen site energy
-    ES_NAZA = -5.0  # aza nitrogen site energy
-
-    Z_EFF_C = 3.25 # carbon Z effective
-    Z_EFF_NPY = 3.90 # pyrrole nitrogen Z effective
-    Z_EFF_NAZA = 4.25 # aza nitrogen Z effective
-
-    N_C = 2.0 # carbon principal quantum number
-    N_NPY = 2.0 # pyrrole nitrogen principal quantum number
-    N_NAZA = 2.0 # aza nitrogen principal quantum number
+    # Model parameters (eV) - using dictionaries
+    IP::Dict{Symbol, Float64} = IP_CRC
+    EA::Dict{Symbol, Float64} = EA_CRC
+    Z_EFF::Dict{Symbol, Float64} = Z_EFF_SLATER
+    N_PRINCIPAL::Dict{Symbol, Int} = N_PRINCIPAL
+    N_STAR_MAP::Dict{Int, Float64} = N_STAR_MAP
+    PI_ELECTRONS::Dict{Symbol, Int} = PI_ELECTRONS
 end
 
 # Implement internal dispatch for Jorner model
 function t_ii(model::Jorner2024Model, system, i)
     atom = system.atoms[i]
-    if atom.symbol == :C
-        return model.ES_C
-    elseif atom.symbol == :N
-        return atom.n_bonds == 3 ? model.ES_NPY : model.ES_NAZA
-    else
-        error("Unsupported atom type: $(atom.symbol)")
+    type = get_atomtype(atom)
+    
+    if !haskey(model.IP, type)
+        error("Unsupported atom type in Jorner2024Model: $type (symbol: $(atom.symbol))")
     end
+    
+    # Site energy alpha ~= -IP
+    return -model.IP[type]
 end
 
 function t_ij(model::Jorner2024Model, system, i, j)
@@ -68,15 +151,31 @@ function t_ij(model::Jorner2024Model, system, i, j)
     distance = norm(atom_i.position - atom_j.position)
     
     # Get Slater parameters
-    Z_eff_i, n_i = get_slater_parameters(model, atom_i)
-    Z_eff_j, n_j = get_slater_parameters(model, atom_j)
+    type_i = get_atomtype(atom_i)
+    type_j = get_atomtype(atom_j)
     
-    exp_i = Z_eff_i / n_i
-    exp_j = Z_eff_j / n_j
+    if !haskey(model.Z_EFF, type_i) || !haskey(model.N_PRINCIPAL, type_i)
+        error("Missing Slater parameters for atom type: $type_i")
+    end
+    if !haskey(model.Z_EFF, type_j) || !haskey(model.N_PRINCIPAL, type_j)
+        error("Missing Slater parameters for atom type: $type_j")
+    end
+
+    Z_eff_i = model.Z_EFF[type_i]
+    n_i_int = model.N_PRINCIPAL[type_i]
+    n_star_i = model.N_STAR_MAP[n_i_int]
+    
+    Z_eff_j = model.Z_EFF[type_j]
+    n_j_int = model.N_PRINCIPAL[type_j]
+    n_star_j = model.N_STAR_MAP[n_j_int]
+    
+    exp_i = Z_eff_i / n_star_i
+    exp_j = Z_eff_j / n_star_j
     
     # Calculate overlap gradient and convert to hopping integral
     r_bohr = Angstrom2Bohr * distance 
-    overlap_grad = slater_grad(r_bohr, n_i, n_j, exp_i, exp_j, 0.01)
+    # Convert integer n to float for the overlap function which expects floats
+    overlap_grad = slater_grad(r_bohr, Float64(n_i_int), Float64(n_j_int), exp_i, exp_j, 0.01)
     beta = overlap_grad / r_bohr  
     
     return beta * Ha2eV
@@ -84,13 +183,14 @@ end
 
 function γ_ii(model::Jorner2024Model, system, i)
     atom = system.atoms[i]
-    if atom.symbol == :C
-        return model.UC
-    elseif atom.symbol == :N
-        return atom.n_bonds == 3 ? model.UN : model.UN_AZA
-    else
-        error("Unsupported atom type: $(atom.symbol)")
+    type = get_atomtype(atom)
+    
+    if !haskey(model.IP, type) || !haskey(model.EA, type)
+        error("Missing IP/EA parameters for atom type: $type")
     end
+    
+    # Gamma = IP - EA
+    return model.IP[type] - model.EA[type]
 end
 
 function γ_ij(model::Jorner2024Model, system, i, j)
@@ -103,19 +203,28 @@ function γ_ij(model::Jorner2024Model, system, i, j)
     return model.ohnoconstant / sqrt(r_ij^2 + (2*model.ohnoconstant/(U_i + U_j))^2)
 end
 
-# Helper function for Slater parameters
-function get_slater_parameters(model::Jorner2024Model, atom)
-    if atom.symbol == :C
-        return (model.Z_EFF_C, model.N_C)
-    elseif atom.symbol == :N
-        if atom.n_bonds == 3
-            return (model.Z_EFF_NPY, model.N_NPY)
-        else
-            return (model.Z_EFF_NAZA, model.N_NAZA)
-        end
-    else
-        error("Unsupported atom type: $(atom.symbol)")
+# ============================================================================ #
+# Interface Implementations
+# ============================================================================ #
+
+function get_pi_electrons(model::Jorner2024Model, atom)
+    type = get_atomtype(atom)
+    if !haskey(model.PI_ELECTRONS, type)
+        error("Unknown atom type for PI electrons: $type")
     end
+    return model.PI_ELECTRONS[type]
+end
+
+function update_atom_params(model::Jorner2024Model, atom)
+    type = get_atomtype(atom)
+    
+    # Update nz (pi electrons)
+    nz = get_pi_electrons(model, atom)
+    
+    Z_eff = get(model.Z_EFF, type, 0.0)
+    n_int = get(model.N_PRINCIPAL, type, 2)
+    
+    return Atom(atom.symbol, atom.position, atom.n_bonds, nz, atom.site_energy, atom.Hubbard_U, Z_eff, Float64(n_int))
 end
 
 # ============================================================================ #

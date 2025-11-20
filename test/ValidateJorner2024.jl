@@ -3,7 +3,7 @@ using Test
 using Printf
 
 @testset "Validate Jorner2024Model with 2T-7N c.f. Bedogni2024 published values" begin
-    system, huckel_result, scf_result = run_ppp_calculation("../molecules/2T-7N.xyz", Jorner2024Model())
+    system, huckel_result, scf_result = run_ppp_calculation(joinpath(@__DIR__, "../molecules/2T-7N.xyz"), Jorner2024Model())
     
     @test scf_result.converged
     @test length(system.atoms) == 13
@@ -42,7 +42,7 @@ end
 
 # Validate CIS calculation
 @testset "Validate CIS calculation with 2T-7N, 2T-N c.f. Bedogni2024 Fig 4 published values" begin
-    system, huckel_result, scf_result = run_ppp_calculation("../molecules/2T-7N.xyz", Jorner2024Model())
+    system, huckel_result, scf_result = run_ppp_calculation(joinpath(@__DIR__, "../molecules/2T-7N.xyz"), Jorner2024Model())
     singlet, triplet = run_cis_calculation(system, scf_result)
 
 #Reference values courtesy of PlotDigitizer, lightly edited. Fig 4d: 2T-7N at different levels of theory
@@ -59,7 +59,7 @@ end
     @printf("S2: %.4f S2(Bedogni2024): %.4f diff: %.4f\n", singlet.energies[2], 5.216931216931217, singlet.energies[2] - 5.216931216931217)
 
     # Now do the same for 2T-N
-    system, huckel_result, scf_result = run_ppp_calculation("../molecules/2T-N.xyz", Bedogni2024Model())
+    system, huckel_result, scf_result = run_ppp_calculation(joinpath(@__DIR__, "../molecules/2T-N.xyz"), Bedogni2024Model())
     singlet, triplet = run_cis_calculation(system, scf_result)
 
     @test triplet.energies[1] ≈ 1.4204946996466425 atol=0.1
