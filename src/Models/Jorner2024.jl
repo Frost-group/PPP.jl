@@ -34,6 +34,7 @@ Fields:
     UC = 10.992      # carbon atom ionisation potential - electron affinity (11.16-0.168)
     UN = 12.461    # pyrrole nitrogen ionisation potential - electron affinity (14.12-1.659)
     UN_AZA = 16.754   # aza nitrogen ionisation potential - electron affinity (28.71-11.956)
+    # Eek! I think these are swapped relative to Coulson ? 
 
     ES_C = 0.0      # carbon site energy
     ES_NPY = -13.0  # pyrrole nitrogen site energy
