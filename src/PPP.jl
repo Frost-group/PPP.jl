@@ -333,7 +333,7 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, model::Ab
         F_eig = eigen(Symmetric(F))
         P_new = calculate_density_matrix(F_eig.vectors, n_occupied)
 
-        println("Iteration $iter:")
+        println("Iteration $iter: Denisty change $(sum(abs.(P_new - P_old)))")
 
         # Debug output of matrices
 #        println("\nCoulomb (J) Matrix:")
