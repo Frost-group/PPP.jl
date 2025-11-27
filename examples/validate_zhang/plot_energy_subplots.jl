@@ -18,7 +18,7 @@ df_zhang_CASPT2 = CSV.read("examples/validate_zhang/Zhang2011Ethene.dat", DataFr
               comment="#",
               header=false)
 
-df_Energies_ethene = CSV.read("examples/validate_zhang/ValidateZhang_CIS_energy_results.csv", DataFrame; delim=',')
+df_Energies_ethene = CSV.read("examples/validate_zhang/ValidateZhang_CIS_energy_results_new.csv", DataFrame; delim=',')
 
 rs = df_zhang_CASPT2[:, 1] #Vector{Float64}
 ES0s_Zhang = df_zhang_CASPT2[:, 2]
@@ -56,7 +56,7 @@ caspt2_excitation_triplet = ET1s_Zhang .- ES0s_Zhang
 @gp :- rs caspt2_excitation_triplet "w lp title 'Zhang CASPT2 1^{3}B_{1u} - 1^{1}A_{g}'"
 @gp :- rs (df_Energies_ethene.ET1s_PPP .- df_Energies_ethene.ES0s_PPP) "w lp title 'Zhang E_{T_{1}} - E_{S_{0}}'"
 @gp :- rs df_Energies_ethene.ETs_CIS "w lp title 'CIS'"
-Gnuplot.save("../../Chem/zhang_plots/ethene_excited_states_subplots.pdf", term="pdfcairo enhanced size 8in,3in")
+Gnuplot.save("../../chem/zhang_plots/ethene_excited_states_subplots.pdf", term="pdfcairo enhanced size 8in,3in")
 @gp :- "unset multiplot"
 
 
