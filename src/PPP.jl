@@ -3,6 +3,7 @@ module PPP
 using LinearAlgebra
 using StaticArrays
 using Printf
+using Logging
 
 # Include model definitions
 include("Models.jl")
@@ -325,7 +326,8 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, model::Ab
         F_eig = eigen(Symmetric(F))
         P_new = calculate_density_matrix(F_eig.vectors, n_occupied)
 
-        println("Iteration $iter: Denisty change $(sum(abs.(P_new - P_old)))")
+        @info "SCF iteration" iter 
+        @info "Density change" density_change=sum(abs.(P_new - P_old))
 
         # Debug output of matrices
 #        println("\nCoulomb (J) Matrix:")
@@ -443,17 +445,19 @@ end
 Run a complete PPP calculation for a molecule specified in an XYZ file.
 """
 function run_ppp_calculation(xyz_file::String, model::AbstractModel; diagonalPPP::Bool=false)::Tuple{MolecularSystem,HuckelResult,SCFResult}
+    is_debug = Logging.min_enabled_level(current_logger()) <= Logging.Debug
+    
     system = read_geometry(xyz_file, model)
-    display(system)
+    is_debug && display(system)
     
     Huckel_result = calculate_Huckel_Hamiltonian(system, model)
-    display(Huckel_result)
+    is_debug && display(Huckel_result)
   
     # TODO: Check for degeneracy
 # @warn "HOMO/LUMO states show degeneracy! Results may be unreliable."
     
     SCF_result = run_SCF(system, Huckel_result, model, diagonalPPP=diagonalPPP)
-    display(SCF_result)
+    is_debug && display(SCF_result)
     
     return system, Huckel_result, SCF_result
 end

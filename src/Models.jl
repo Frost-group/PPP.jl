@@ -35,22 +35,22 @@ end
 
 # Internal dispatch functions - these will be implemented by each model
 function t_ii(model::AbstractModel, system, i)
-    warn("t_ii not implemented for $(typeof(model)). Returning 0.0.")
+    @warn("t_ii not implemented for $(typeof(model)). Returning 0.0.")
     return 0.0
 end
 
 function t_ij(model::AbstractModel, system, i, j)
-    warn("t_ij not implemented for $(typeof(model)). Returning 0.0.")
+    @warn("t_ij not implemented for $(typeof(model)). Returning 0.0.")
     return 0.0
 end
 
 function γ_ii(model::AbstractModel, system, i)
-    warn("γ_ii not implemented for $(typeof(model)). Returning 0.0.")
+    @warn("γ_ii not implemented for $(typeof(model)). Returning 0.0.")
     return 0.0
 end
 
 function γ_ij(model::AbstractModel, system, i, j)
-    warn("γ_ij not implemented for $(typeof(model)). Returning 0.0.")
+    @warn("γ_ij not implemented for $(typeof(model)). Returning 0.0.")
     return 0.0
 end
 
@@ -90,3 +90,4 @@ end
 include("Models/Bedogni2024.jl")
 include("Models/Jorner2024.jl")
 include("Models/Zhang2011.jl")
+
