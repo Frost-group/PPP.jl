@@ -105,20 +105,13 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
     n_orbs = size(scf_result.eigenvectors, 2)
     n_occ = system.n_electrons ÷ 2
     
-    println("\nStarting CIS calculation:")
-    println("Number of occupied orbitals: $n_occ")
-    println("Total number of orbitals: $n_orbs")
-    
-    # Print orbital energies
-    println("\nOrbital energies:")
-    for i in 1:n_orbs
-        @printf("ε[%d] = %8.3f eV\n", i, scf_result.energies[i])
-    end
+    @debug "Starting CIS calculation" n_occ n_orbs
+    @debug "Orbital energies (eV)" energies=scf_result.energies
     
     # Generate all single excitations
     configs = generate_single_excitations(n_orbs, n_occ)
     n_configs = length(configs)
-    println("\nNumber of configurations: $n_configs")
+    @debug "CIS configurations" n_configs
     
     # Build CIS matrix
     H_S = zeros(n_configs, n_configs)
@@ -133,22 +126,8 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         H_T[q,p] = H_T[p,q]
     end
     
-    # Print CIS matrix
-    println("\nFirst 10-block of Singlet CIS matrix:")
-    for i in 1:min(10, n_configs)
-        for j in 1:min(10, n_configs)
-            @printf(" %8.3f", H_S[i,j])
-        end
-        println()
-    end
-
-    println("\nFirst 10-block of Triplet CIS matrix:")
-    for i in 1:min(10, n_configs)
-        for j in 1:min(10, n_configs)
-            @printf(" %8.3f", H_T[i,j])
-        end
-        println()
-    end
+    @debug "CIS singlet matrix (10x10 block)" singlet=H_S[1:min(10,n_configs), 1:min(10,n_configs)] 
+    @debug "CIS triplet matrix (10x10 block)" triplet=H_T[1:min(10,n_configs), 1:min(10,n_configs)]
     
     # Solve eigenvalue problem
     E_S, C_S = eigen(Symmetric(H_S))
@@ -172,15 +151,8 @@ function run_cis_calculation(system::MolecularSystem, scf_result::SCFResult)
         f[state] = (2/3) * ΔE * sum(abs2, μ)
     end
     
-    println("Singlet excitations:")
-    for i in 1:n_configs
-        @printf("ε[%d] = %8.3f eV f = %8.3f \n", i, E_S[i], f[i])
-    end
-
-    println("Triplet excitations:")
-    for i in 1:n_configs
-        @printf("ε[%d] = %8.3f eV f = %8.3f \n", i, E_T[i], f[i])
-    end
+    @debug "Singlet excitations (eV) oscillator strengths" energies=E_S oscillator_strengths=f
+    @debug "Triplet excitations (eV)" energies=E_T
 
     return (
         CIResult(
@@ -328,20 +300,13 @@ function run_cisd_calculation(system::MolecularSystem, scf_result::SCFResult)
     n_orbs = size(scf_result.eigenvectors, 2)
     n_occ = system.n_electrons ÷ 2
     
-    println("\nStarting CISD calculation:")
-    println("Number of occupied orbitals: $n_occ")
-    println("Total number of orbitals: $n_orbs")
-    
-    # Print orbital energies
-    println("\nOrbital energies:")
-    for i in 1:n_orbs
-        @printf("ε[%d] = %8.3f eV\n", i, scf_result.energies[i])
-    end
+    @debug "Starting CISD calculation" n_occ n_orbs
+    @debug "Orbital energies (eV)" energies=scf_result.energies
     
     # Generate all excitations
     configs = generate_excitations(n_orbs, n_occ)
     n_configs = length(configs)
-    println("\nNumber of configurations: $n_configs")
+    @debug "CISD configurations: " n_configs
     
     # Build CISD matrix
     H_CISD = zeros(n_configs, n_configs)
@@ -351,14 +316,7 @@ function run_cisd_calculation(system::MolecularSystem, scf_result::SCFResult)
         H_CISD[q,p] = H_CISD[p,q]
     end
     
-    # Print CISD matrix
-    println("\nFirst 10-block of CISD matrix:")
-    for i in 1:min(10, n_configs)
-        for j in 1:min(10, n_configs)
-            @printf(" %8.3f", H_CISD[i,j])
-        end
-        println()
-    end
+    @debug "CISD matrix (10x10 block)" H_CISD=H_CISD[1:min(10,n_configs), 1:min(10,n_configs)]
     
     # Solve eigenvalue problem
     E_CISD, C_CISD = eigen(Symmetric(H_CISD))
