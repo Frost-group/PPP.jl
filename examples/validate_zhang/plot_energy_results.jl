@@ -5,6 +5,8 @@ using StaticArrays
 using CSV, DataFrames
 using Gnuplot
 
+#NOTE: NEED TO SET YOUR OWN DIRECTORY FOR OUTPUT PLOTS
+
 function remove_eqb_offset(energies::Vector{Float64})
     offset = energies[6] # assuming equilibrium bond length at 6th element in data frame column as per Zhang2011Ethene.dat
     return energies .- offset
@@ -16,7 +18,7 @@ df_zhang_CASPT2 = CSV.read("examples/validate_zhang/Zhang2011Ethene.dat", DataFr
               comment="#",
               header=false)
 
-df_Energies_ethene = CSV.read("examples/validate_zhang/ValidateZhang_CIS_energy_results.csv", DataFrame; delim=',')
+df_Energies_ethene = CSV.read("examples/validate_zhang/ValidateZhang_CIS_energy_results_new.csv", DataFrame; delim=',')
 
 rs = df_zhang_CASPT2[:, 1] #Vector{Float64}
 ES0s_Zhang = df_zhang_CASPT2[:, 2]
@@ -33,7 +35,7 @@ caspt2_excitation_triplet = ET1s_Zhang .- ES0s_Zhang
 
 @gp(
     "set term pdfcairo enhanced size 4in,3in",
-    "set output '../../Chem/zhang_plots/ethene_excited_singlet.pdf'",
+    "set output '../../chem/zhang_plots/ethene_excited_singlet_NEW.pdf'",
     "set xlabel 'C=C bond length (Å)'",
     "set ylabel 'Excitation energy (eV)'",
     "set yrange [1.5:9.0]",
@@ -48,7 +50,7 @@ caspt2_excitation_triplet = ET1s_Zhang .- ES0s_Zhang
 # triplet state
 @gp(
     "set term pdfcairo enhanced size 4in,3in",
-    "set output '../../Chem/zhang_plots/ethene_excited_triplet.pdf'",
+    "set output '../../chem/zhang_plots/ethene_excited_triplet_NEW.pdf'",
     "set xlabel 'C=C bond length (Å)'",
     "set ylabel 'Excitation energy (eV)'",
     "set grid",
@@ -64,7 +66,7 @@ caspt2_excitation_triplet = ET1s_Zhang .- ES0s_Zhang
 # ground state comparison
 @gp(
     "set term pdfcairo enhanced size 4in,3in",
-    "set output '../../Chem/zhang_plots/ethene_ground_state.pdf'",
+    "set output '../../chem/zhang_plots/ethene_ground_state_NEW.pdf'",
     "set xlabel 'C=C bond length (Å)'",
     "set ylabel 'Energy (eV)'",
     "set grid",
