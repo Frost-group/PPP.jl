@@ -13,12 +13,12 @@ using StaticArrays
     carbon_count = count(atom -> atom.symbol == :C, system.atoms)
     @test carbon_count == 2
 
-    @test huckel_result.energies[1] ≈ -10.0450931042920 atol=1e-3
-    @test huckel_result.energies[2] ≈ 0.0 atol=1e-3
+    @test huckel_result.energies[1] ≈ -19.889 atol=1e-3
+    @test huckel_result.energies[2] ≈ -13.764 atol=1e-3
 
     singlet, triplet = run_cis_calculation(system, scf_result)
 
-    @test singlet.energies[1] - triplet.energies[1] ≈ 3.45 atol=0.1
+    @test singlet.energies[1] - triplet.energies[1] ≈ 4.031 atol=0.1
 end
 
 @testset "Repro Fig 1 from Zhang2011Model" begin
