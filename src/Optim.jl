@@ -51,8 +51,11 @@ function optim_ppp(make_model::Function, x0::Vector{Float64}, dataset::Vector{Mo
                       ub::Vector{Float64}=fill(Inf, length(x0)),
                       options::Optim.Options=Optim.Options(show_trace=true, iterations=100))
     loss = build_loss(make_model, dataset)
-    optimize(loss, lb, ub, x0, Fminbox(NelderMead()), options)
-    # Currently gradient free; god knows whether autodiff will work. Probably not. 
+#    optimize(loss, lb, ub, x0, Fminbox(NelderMead()), options)
+    optimize(loss, lb, ub, x0, SAMIN(), options)
+
+
+# Currently gradient free; god knows whether autodiff will work. Probably not. 
 end
 
 export MoleculeReference, build_loss, optim_ppp
