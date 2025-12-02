@@ -353,14 +353,18 @@ function run_SCF(system::MolecularSystem, huckel_result::HuckelResult, model::Ab
 #        α = 0.6
 #        P_old = α * P_new + (1-α) * P_old
         P_old = copy(P_new)
+
+        # Whoops! Scoping error. Moved failure code here. 
+        if iter == max_iterations
+            @warn "SCF failed to converge after $max_iterations iterations. Returning the last iteration. BEWARE! DRAGONS!"
+            return SCFResult(
+                F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_old,
+                calculate_total_energy(F_eig.values, n_occupied),
+                max_iterations, false
+            )
+        end
     end
     
-    @warn "SCF failed to converge after $max_iterations iterations. Returning the last iteration. BEWARE! DRAGONS!"
-    return SCFResult(
-        F, K, J, V_raw, F_eig.values, F_eig.vectors, n_occupied, P_old,
-        calculate_total_energy(F_eig.values, n_occupied),
-        max_iterations, false
-    )
 end
 
 """
@@ -644,6 +648,7 @@ function Base.show(io::IO, result::SCFResult)
 end
 
 include("CI.jl")
+include("Optim.jl")
 
 export read_geometry, run_ppp_calculation
 
