@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/jarvist/PPP.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/jarvist/PPP.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
-Pariser–Parr–Pople for the win! A super-simple semi-empirical quantum chemical method built on top of the establish Hückel method. Singlets, Triplets, Oh my!
+Pariser–Parr–Pople for the win! A super-simple semi-empirical quantum chemical method built on top of the established Hückel method. Singlets, Triplets, Oh my!
 
 # References
 
