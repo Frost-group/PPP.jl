@@ -17,7 +17,11 @@ Pariser–Parr–Pople for the win! A super-simple semi-empirical quantum chemic
 # Contributors
 
 2024-- Jarvist Moore Frost
+
+
 2025-- Freja Orritt
+
+
 2025-- Abigail Levison
 
 These codes were created with careful reference to [Bedogni2024] (non
