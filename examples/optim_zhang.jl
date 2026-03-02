@@ -10,12 +10,12 @@ global_logger(ConsoleLogger(stderr, Logging.Warn))
 
 # Reference data: (mol_path, S1_ref, T1_ref) from ORCA EOM-CCSD(T) (actually, was it pertubative triplets?)
 const DATASET = [
- #   ("molecules/cyclobutadiene.xyz",    3.159, 1.367),
+    ("molecules/cyclobutadiene.xyz",    3.159, 1.367),
     ("molecules/butadiene.xyz",         6.507, 3.232),
     ("molecules/hexatriene.xyz",        5.442, 2.475),
     ("molecules/pentalene.xyz",         1.909, 0.993),
-#    ("molecules/cyclooctatetraene.xyz", 4.123, 2.797),
-    ("molecules/azulene.xyz",           1.833, 1.923),
+    ("molecules/cyclooctatetraene.xyz", 4.123, 2.797),
+#    ("molecules/azulene.xyz",           1.833, 1.923),
 #    ("molecules/octatetraene.xyz",      4.701, 2.045),
 #    ("molecules/heptalene.xyz",         2.460, 1.606),
 #    ("molecules/phenanthrene.xyz",      3.711, 2.641),
